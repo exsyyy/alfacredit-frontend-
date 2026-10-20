@@ -1,0 +1,76 @@
+import { beforeEach, describe, expect, it } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import App from './App'
+import { createMockCreditApi } from './api/mockCreditApi'
+import type { AuthApi } from './api/httpAuthApi'
+
+function fillForm() {
+  fireEvent.change(screen.getByLabelText('Компания'), {
+    target: { value: '01a15975-ea5f-7a4f-863b-9035b3b8b2ca' },
+  })
+  fireEvent.change(screen.getByLabelText('Кредитный продукт'), { target: { value: 'working-capital' } })
+  fireEvent.change(screen.getByLabelText('Сумма кредита'), { target: { value: '1500000' } })
+  fireEvent.change(screen.getByLabelText('Срок, месяцев'), { target: { value: '12' } })
+  fireEvent.change(screen.getByLabelText('Цель финансирования'), { target: { value: 'WorkingCapital' } })
+}
+
+describe('application flow', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('shows required field errors before sending', async () => {
+    const api = createMockCreditApi({ storage: localStorage, delayMs: 0 })
+    render(<MemoryRouter><App api={api} /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Отправить заявку' }))
+    expect(screen.getByText('Выберите компанию.')).toBeInTheDocument()
+    expect(screen.getByText('Укажите сумму кредита.')).toBeInTheDocument()
+    expect(screen.getByText('Укажите срок кредита.')).toBeInTheDocument()
+  })
+
+  it('moves from a completed form to the saved application', async () => {
+    const api = createMockCreditApi({
+      storage: localStorage, delayMs: 0,
+      idFactory: () => 'application-1', now: () => '2026-10-20T13:17:20.000Z',
+    })
+    render(<MemoryRouter><App api={api} /></MemoryRouter>)
+    await screen.findByLabelText('Компания')
+    fillForm()
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить заявку' }))
+    await screen.findByRole('heading', { name: 'Заявка AC-000001' })
+    expect(screen.getByRole('heading', { name: 'Отправлена' })).toBeInTheDocument()
+    expect(screen.getByText('После подключения API банк начнёт проверку. Сейчас это демонстрационный шаг.')).toBeInTheDocument()
+    expect(screen.getByText('1 500 000 ₽')).toBeInTheDocument()
+  })
+
+  it('keeps entered values and offers a retry after a save error', async () => {
+    const api = createMockCreditApi({ storage: localStorage, delayMs: 0, failCreate: true })
+    render(<MemoryRouter><App api={api} /></MemoryRouter>)
+    await screen.findByLabelText('Компания')
+    fillForm()
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить заявку' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Демо-сервис временно недоступен.'))
+    expect(screen.getByLabelText('Сумма кредита')).toHaveValue('1500000')
+    expect(screen.getByRole('button', { name: 'Попробовать снова' })).toBeEnabled()
+  })
+
+  it('shows the API login before the application form', async () => {
+    const api = createMockCreditApi({ storage: localStorage, delayMs: 0 })
+    const auth: AuthApi = {
+      current: () => null,
+      login: async () => ({
+        accessToken: 'token-1', expiresAt: '2099-01-01T00:00:00Z',
+        user: { id: 'user-1', login: 'client_good', fullName: 'Мария Иванова', role: 'Client' },
+      }),
+      logout: () => undefined,
+    }
+    render(<MemoryRouter><App api={api} auth={auth} /></MemoryRouter>)
+    expect(screen.getByRole('heading', { name: 'Вход в кабинет' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Компания')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Логин'), { target: { value: 'client_good' } })
+    fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'Demo123!' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Войти' }))
+    await screen.findByLabelText('Компания')
+    expect(screen.getByText(/Локальный API:/)).toBeInTheDocument()
+    expect(screen.queryByText(/данные сохраняются только в этом браузере/)).not.toBeInTheDocument()
+  })
+})
