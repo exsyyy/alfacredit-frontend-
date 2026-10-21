@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import App from './App'
 import { createMockCreditApi } from './api/mockCreditApi'
 import type { AuthApi } from './api/httpAuthApi'
+import type { CreditApi } from './api/creditApi'
 
 function fillForm() {
   fireEvent.change(screen.getByLabelText('Компания'), {
@@ -72,5 +73,20 @@ describe('application flow', () => {
     await screen.findByLabelText('Компания')
     expect(screen.getByText(/Локальный API:/)).toBeInTheDocument()
     expect(screen.queryByText(/данные сохраняются только в этом браузере/)).not.toBeInTheDocument()
+  })
+
+  it('returns to login when the API rejects an expired session', async () => {
+    const logout = vi.fn()
+    const auth: AuthApi = {
+      current: () => ({ accessToken: 'expired', expiresAt: '2099-01-01T00:00:00Z', user: { id: 'user-1', login: 'client_good', fullName: 'Мария Иванова', role: 'Client' } }),
+      login: vi.fn(), logout,
+    }
+    const api = {
+      getProducts: () => Promise.resolve([]),
+      getCompanies: () => Promise.reject({ status: 401, title: 'Unauthorized' }),
+    } as unknown as CreditApi
+    render(<MemoryRouter><App api={api} auth={auth} /></MemoryRouter>)
+    await screen.findByRole('heading', { name: 'Вход в кабинет' })
+    expect(logout).toHaveBeenCalledOnce()
   })
 })

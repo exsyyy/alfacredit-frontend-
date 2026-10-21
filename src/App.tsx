@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link, Route, Routes } from 'react-router-dom'
 import type { CreditApi } from './api/creditApi'
 import type { AuthApi } from './api/httpAuthApi'
@@ -9,6 +9,7 @@ import LoginPanel from './features/auth/LoginPanel'
 export default function App({ api, auth }: { api: CreditApi; auth?: AuthApi }) {
   const [session, setSession] = useState(() => auth?.current() ?? null)
   const isDemo = !auth
+  const onAuthExpired = useCallback(() => { auth?.logout(); setSession(null) }, [auth])
 
   return (
     <div className="app-shell">
@@ -24,8 +25,8 @@ export default function App({ api, auth }: { api: CreditApi; auth?: AuthApi }) {
       <div className="demo-ribbon" role="note"><span className="demo-dot" /> {isDemo ? 'Демо-режим: данные сохраняются только в этом браузере. Банк не получает заявку.' : 'Локальный API: заявка сохраняется в тестовой базе бэкенда.'}</div>
       {auth && !session ? <LoginPanel auth={auth} onLogin={setSession} /> :
         <Routes>
-          <Route path="/" element={<ApplicationFormPage api={api} isDemo={isDemo} />} />
-          <Route path="/applications/:id" element={<ApplicationPage api={api} isDemo={isDemo} />} />
+          <Route path="/" element={<ApplicationFormPage api={api} isDemo={isDemo} onAuthExpired={onAuthExpired} />} />
+          <Route path="/applications/:id" element={<ApplicationPage api={api} isDemo={isDemo} onAuthExpired={onAuthExpired} />} />
           <Route path="*" element={<main className="page"><h1>Страница не найдена</h1><Link to="/">К форме заявки</Link></main>} />
         </Routes>}
       <footer className="site-footer"><span>АльфаКредит · прототип для хакатона</span><span>{isDemo ? 'Данные и условия — демонстрационные' : 'Подключение к локальному API'}</span></footer>

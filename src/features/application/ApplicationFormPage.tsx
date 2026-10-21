@@ -9,7 +9,7 @@ const initialValues: ApplicationFormValues = {
 }
 const formatMoney = (value: number) => `${new Intl.NumberFormat('ru-RU').format(value)} ₽`
 
-export default function ApplicationFormPage({ api, isDemo = true }: { api: CreditApi; isDemo?: boolean }) {
+export default function ApplicationFormPage({ api, isDemo = true, onAuthExpired }: { api: CreditApi; isDemo?: boolean; onAuthExpired?: () => void }) {
   const navigate = useNavigate()
   const [values, setValues] = useState<ApplicationFormValues>(initialValues)
   const [products, setProducts] = useState<Product[]>([])
@@ -31,10 +31,14 @@ export default function ApplicationFormPage({ api, isDemo = true }: { api: Credi
         setCompanies(nextCompanies)
         setLoadError('')
       })
-      .catch(() => { if (active) setLoadError('Не удалось загрузить продукты и компании.') })
+      .catch((problem: ApiProblem) => {
+        if (!active) return
+        if (problem?.status === 401) onAuthExpired?.()
+        else setLoadError('Не удалось загрузить продукты и компании.')
+      })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [api, reloadKey])
+  }, [api, onAuthExpired, reloadKey])
 
   function update<K extends keyof ApplicationFormValues>(key: K, value: ApplicationFormValues[K]) {
     setValues((current) => ({ ...current, [key]: value, ...(key === 'productCode' ? { purpose: '' } : {}) }))
@@ -54,6 +58,7 @@ export default function ApplicationFormPage({ api, isDemo = true }: { api: Credi
       navigate(`/applications/${response.id}`, { state: { justSaved: true } })
     } catch (error) {
       const issue = error as ApiProblem
+      if (issue?.status === 401) { onAuthExpired?.(); return }
       if (issue?.errors) {
         const fieldErrors: FieldErrors = {}
         for (const [field, messages] of Object.entries(issue.errors)) {

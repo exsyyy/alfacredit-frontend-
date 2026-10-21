@@ -93,6 +93,10 @@ h2 { margin-bottom: 0; }
 .status-badge { display: inline-flex; align-items: center; gap: 9px; background: #eaf5eb; color: #247246; border-radius: 100px; padding: 10px 15px; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .status-badge span { width: 7px; height: 7px; border-radius: 50%; background: #35a663; }
 .success-banner { margin-bottom: 20px; border: 1px solid #bbdec3; border-radius: 10px; background: #f0faf2; color: #237344; padding: 13px 18px; font-size: 13px; }
+.refresh-note { margin: -13px 0 20px; color: #65717a; font-size: 12px; }
+.refresh-error { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; border: 1px solid #f3bbb5; border-radius: 10px; background: #fff8f7; color: #982c25; padding: 13px 18px; font-size: 13px; }
+.decision-detail { margin-top: 20px; border-top: 1px solid #ebedef; padding-top: 18px; font-size: 13px; }
+.decision-detail p { margin: 7px 0 0; color: #5e686d; line-height: 1.5; }
 .detail-main { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
 .next-step-panel { padding: 29px 32px 32px; border-left: 4px solid #ef3124; }
 .next-step-panel .side-label { margin-bottom: 11px; }
@@ -149,6 +153,7 @@ h2 { margin-bottom: 0; }
   .form-actions p { text-align: center; }
   .side-column, .detail-grid .side-column { display: flex; }
   .detail-heading { align-items: flex-start; flex-direction: column; }
+  .refresh-error { align-items: flex-start; flex-direction: column; }
   .details-panel, .next-step-panel { padding: 24px 20px; }
   .detail-list > div { grid-template-columns: 1fr; gap: 5px; padding: 14px 0; }
   .site-footer { padding: 20px; flex-direction: column; gap: 6px; }
