@@ -30,6 +30,39 @@ export function createMockCreditApi(options: MockOptions): CreditApi {
     }
   }
 
+  const saveAll = (applications: Application[]) => {
+    try {
+      options.storage.setItem(storageKey, JSON.stringify(applications))
+    } catch {
+      throw problem(500, 'Не удалось сохранить демо-заявку в браузере.')
+    }
+  }
+
+  const changeApplication = async (id: string, action: 'acceptOffer' | 'declineOffer' | 'cancel') => {
+    await pause()
+    const applications = readAll()
+    const index = applications.findIndex((item) => item.id === id)
+    if (index < 0) throw problem(404, 'Заявка не найдена.')
+    const current = applications[index]
+    if (!current.availableActions.includes(action) ||
+      (action !== 'cancel' && (current.offer?.response !== 'Pending' || new Date(current.offer.expiresAt).getTime() <= Date.now()))) {
+      throw problem(409, 'Это действие больше недоступно. Обновите заявку.')
+    }
+    const timestamp = now()
+    const code = action === 'cancel' ? 'Cancelled' : action === 'acceptOffer' ? 'ContractSigning' : 'OfferDeclined'
+    const title = action === 'cancel' ? 'Отменена' : action === 'acceptOffer' ? 'Предложение принято' : 'Предложение отклонено'
+    const updated: Application = {
+      ...current,
+      status: { ...current.status, code, title, description: title, clientNextAction: action === 'acceptOffer' ? 'Ожидайте подготовки договора.' : 'Действие сохранено.', isTerminal: action !== 'acceptOffer' },
+      offer: current.offer ? { ...current.offer, response: action === 'cancel' ? current.offer.response : action === 'acceptOffer' ? 'Accepted' : 'Declined', respondedAt: action === 'cancel' ? current.offer.respondedAt : timestamp } : null,
+      availableActions: [], updatedAt: timestamp,
+      history: [...current.history, { fromStatus: current.status.code, toStatus: code, toStatusTitle: title, actor: 'Client', actorUserId: current.createdByUserId, comment: title, occurredAt: timestamp }],
+    }
+    applications[index] = updated
+    saveAll(applications)
+    return updated
+  }
+
   return {
     async getProducts() {
       await pause()
@@ -81,18 +114,15 @@ export function createMockCreditApi(options: MockOptions): CreditApi {
         purposeDescription: request.purposeDescription ?? null,
         createdByUserId: '01a15619-f9cc-70fe-bad8-2c6a70edfbd5',
         createdAt: timestamp, updatedAt: timestamp,
-        availableActions: [],
+        availableActions: ['cancel'],
+        decision: null, offer: null,
         history: [{
           fromStatus: null, toStatus: 'Submitted', toStatusTitle: 'Отправлена',
           actor: 'Client', actorUserId: '01a15619-f9cc-70fe-bad8-2c6a70edfbd5',
           comment: 'Заявка создана и отправлена.', occurredAt: timestamp,
         }],
       }
-      try {
-        options.storage.setItem(storageKey, JSON.stringify([...applications, application]))
-      } catch {
-        throw problem(500, 'Не удалось сохранить демо-заявку в браузере.')
-      }
+      saveAll([...applications, application])
       return { id, number, status: 'Submitted' }
     },
     async getApplication(id: string) {
@@ -101,5 +131,19 @@ export function createMockCreditApi(options: MockOptions): CreditApi {
       if (!application) throw problem(404, 'Заявка не найдена.')
       return application
     },
+    async listApplications(page = 1) {
+      await pause()
+      const pageSize = 20
+      const applications = readAll().reverse()
+      const items = applications.slice((page - 1) * pageSize, page * pageSize).map((item) => ({
+        id: item.id, number: item.number, status: item.status, company: item.company,
+        product: item.product, amount: item.amount, termMonths: item.termMonths,
+        purpose: item.purpose, purposeTitle: item.purposeTitle, createdAt: item.createdAt, updatedAt: item.updatedAt,
+      }))
+      return { items, page, pageSize, totalCount: applications.length, totalPages: Math.ceil(applications.length / pageSize) }
+    },
+    acceptOffer: (id) => changeApplication(id, 'acceptOffer'),
+    declineOffer: (id) => changeApplication(id, 'declineOffer'),
+    cancelApplication: (id) => changeApplication(id, 'cancel'),
   }
 }

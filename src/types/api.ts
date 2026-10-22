@@ -72,6 +72,55 @@ export interface ApplicationHistoryEntry {
   occurredAt: string
 }
 
+export type DecisionType = 'Approved' | 'ApprovedWithConditions' | 'Rejected' | 'ManualReview'
+
+export interface Decision {
+  type: DecisionType
+  isFinal: boolean
+  decidedBy: 'Auto' | 'Manager'
+  recommendedType: DecisionType | null
+  approvedAmount: number | null
+  approvedTermMonths: number | null
+  interestRate: number | null
+  monthlyPayment: number | null
+  conditions: string | null
+  reasons: Array<{ code: string; title: string; explanation: string }>
+  decidedAt: string
+}
+
+export interface Offer {
+  id: string
+  amount: number
+  termMonths: number
+  interestRate: number
+  monthlyPayment: number
+  expiresAt: string
+  response: 'Pending' | 'Accepted' | 'Declined' | 'Expired'
+  respondedAt: string | null
+}
+
+export interface ApplicationSummary {
+  id: string
+  number: string
+  status: ApplicationStatus
+  company: { id: string; name: string; inn: string }
+  product: { code: string; name: string }
+  amount: number
+  termMonths: number
+  purpose: LoanPurpose
+  purposeTitle: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PagedResponse<T> {
+  items: T[]
+  page: number
+  pageSize: number
+  totalCount: number
+  totalPages: number
+}
+
 export interface Application {
   id: string
   number: string
@@ -87,6 +136,8 @@ export interface Application {
   createdAt: string
   updatedAt: string
   availableActions: string[]
+  decision: Decision | null
+  offer: Offer | null
   history: ApplicationHistoryEntry[]
 }
 

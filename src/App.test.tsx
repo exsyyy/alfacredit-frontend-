@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import App from './App'
 import { createMockCreditApi } from './api/mockCreditApi'
@@ -41,6 +41,10 @@ describe('application flow', () => {
     expect(screen.getByRole('heading', { name: 'Отправлена' })).toBeInTheDocument()
     expect(screen.getByText('После подключения API банк начнёт проверку. Сейчас это демонстрационный шаг.')).toBeInTheDocument()
     expect(screen.getByText('1 500 000 ₽')).toBeInTheDocument()
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Основная навигация' })).getByRole('link', { name: 'Мои заявки' }))
+    expect(await screen.findByRole('heading', { name: 'Мои заявки' })).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('link', { name: 'Заявка AC-000001' }))
+    expect(await screen.findByRole('heading', { name: 'Заявка AC-000001' })).toBeInTheDocument()
   })
 
   it('keeps entered values and offers a retry after a save error', async () => {

@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react'
-import { Link, Route, Routes } from 'react-router-dom'
+import { Link, NavLink, Route, Routes } from 'react-router-dom'
 import type { CreditApi } from './api/creditApi'
 import type { AuthApi } from './api/httpAuthApi'
 import ApplicationFormPage from './features/application/ApplicationFormPage'
 import ApplicationPage from './features/application/ApplicationPage'
+import ApplicationsListPage from './features/application/ApplicationsListPage'
 import LoginPanel from './features/auth/LoginPanel'
 
 export default function App({ api, auth }: { api: CreditApi; auth?: AuthApi }) {
@@ -18,7 +19,7 @@ export default function App({ api, auth }: { api: CreditApi; auth?: AuthApi }) {
           <Link className="brand" to="/" aria-label="АльфаКредит — новая заявка">
             <span className="brand-mark">а</span><span>Альфа<span className="brand-light">Кредит</span></span>
           </Link>
-          <nav aria-label="Основная навигация"><Link className="nav-link" to="/">Новая заявка</Link></nav>
+          <nav aria-label="Основная навигация"><NavLink className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`} end to="/">Новая заявка</NavLink><NavLink className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`} to="/applications">Мои заявки</NavLink></nav>
           {session ? <div className="account-controls"><span>{session.user.fullName}</span><button type="button" onClick={() => { auth?.logout(); setSession(null) }}>Выйти</button></div> : <span className="header-caption">Кабинет предпринимателя</span>}
         </div>
       </header>
@@ -26,6 +27,7 @@ export default function App({ api, auth }: { api: CreditApi; auth?: AuthApi }) {
       {auth && !session ? <LoginPanel auth={auth} onLogin={setSession} /> :
         <Routes>
           <Route path="/" element={<ApplicationFormPage api={api} isDemo={isDemo} onAuthExpired={onAuthExpired} />} />
+          <Route path="/applications" element={<ApplicationsListPage api={api} onAuthExpired={onAuthExpired} />} />
           <Route path="/applications/:id" element={<ApplicationPage api={api} isDemo={isDemo} onAuthExpired={onAuthExpired} />} />
           <Route path="*" element={<main className="page"><h1>Страница не найдена</h1><Link to="/">К форме заявки</Link></main>} />
         </Routes>}

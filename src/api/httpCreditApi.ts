@@ -1,5 +1,5 @@
 import type { CreditApi } from './creditApi'
-import type { ApiProblem, Application, Company, CreateApplicationResponse, Product } from '../types/api'
+import type { ApiProblem, Application, ApplicationSummary, Company, CreateApplicationResponse, PagedResponse, Product } from '../types/api'
 
 interface HttpOptions {
   baseUrl: string
@@ -38,5 +38,9 @@ export function createHttpCreditApi(options: HttpOptions): CreditApi {
       method: 'POST', body: JSON.stringify(body),
     }),
     getApplication: (id) => request<Application>(`/api/applications/${encodeURIComponent(id)}`),
+    listApplications: (page = 1) => request<PagedResponse<ApplicationSummary>>(`/api/applications?page=${page}&pageSize=20`),
+    acceptOffer: (id) => request<Application>(`/api/applications/${encodeURIComponent(id)}/offer/accept`, { method: 'POST' }),
+    declineOffer: (id) => request<Application>(`/api/applications/${encodeURIComponent(id)}/offer/decline`, { method: 'POST' }),
+    cancelApplication: (id) => request<Application>(`/api/applications/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
   }
 }

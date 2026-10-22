@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import type { CreditApi } from '../../api/creditApi'
 import type { ApiProblem, Application } from '../../types/api'
@@ -7,7 +7,8 @@ const money = (value: number) => `${new Intl.NumberFormat('ru-RU').format(value)
 const date = (value: string) => new Intl.DateTimeFormat('ru-RU', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(value))
 
 const processingStatuses = new Set(['Submitted', 'Validating', 'Enriching', 'Scoring', 'Deciding', 'ManualReview', 'Signed'])
-const shouldRefresh = (application: Application) => !application.status.isTerminal && processingStatuses.has(application.status.code)
+const shouldRefresh = (application: Application) => application.offer?.response === 'Pending' || (!application.status.isTerminal && processingStatuses.has(application.status.code))
+type Action = 'acceptOffer' | 'declineOffer' | 'cancel'
 
 export default function ApplicationPage({ api, isDemo = true, onAuthExpired }: { api: CreditApi; isDemo?: boolean; onAuthExpired?: () => void }) {
   const { id } = useParams()
@@ -17,7 +18,10 @@ export default function ApplicationPage({ api, isDemo = true, onAuthExpired }: {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [refreshError, setRefreshError] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [pendingAction, setPendingAction] = useState<Action | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const actionLock = useRef(false)
 
   useEffect(() => {
     let active = true
@@ -48,27 +52,56 @@ export default function ApplicationPage({ api, isDemo = true, onAuthExpired }: {
     return () => { active = false; if (timer) clearTimeout(timer) }
   }, [api, id, isDemo, onAuthExpired, reloadKey])
 
+  const runAction = async (action: Action) => {
+    if (!id || actionLock.current) return
+    actionLock.current = true
+    setPendingAction(action)
+    setActionError('')
+    try {
+      const updated = action === 'acceptOffer' ? await api.acceptOffer(id)
+        : action === 'declineOffer' ? await api.declineOffer(id)
+          : await api.cancelApplication(id)
+      setApplication(updated)
+      setReloadKey((key) => key + 1)
+    } catch (problem) {
+      const issue = problem as ApiProblem
+      if (issue?.status === 401) { onAuthExpired?.(); return }
+      setActionError(issue?.title || 'Не удалось выполнить действие. Повторите попытку.')
+      if (issue?.status === 409) setReloadKey((key) => key + 1)
+    } finally {
+      actionLock.current = false
+      setPendingAction(null)
+    }
+  }
+
   if (loading) return <main className="page"><div className="state-panel" role="status">Загружаем заявку…</div></main>
-  if (error || !application) return <main className="page"><div className="state-panel error-panel" role="alert"><h1>{error || 'Заявка не найдена.'}</h1><p>Проверьте ссылку или повторите загрузку.</p><button type="button" className="secondary-button" onClick={() => { setLoading(true); setReloadKey((key) => key + 1) }}>Повторить</button><Link to="/" className="text-link">Новая заявка</Link></div></main>
+  if (error || !application) return <main className="page"><div className="state-panel error-panel" role="alert"><h1>{error || 'Заявка не найдена.'}</h1><p>Проверьте ссылку или повторите загрузку.</p><button type="button" className="secondary-button" onClick={() => { setLoading(true); setReloadKey((key) => key + 1) }}>Повторить</button><Link to="/applications" className="text-link">Мои заявки</Link></div></main>
 
   const decisionComment = [...application.history].reverse().find((entry) => entry.toStatus === application.status.code && entry.comment?.trim())?.comment
   const refreshing = !isDemo && shouldRefresh(application) && !refreshError
+  const actions = application.availableActions ?? []
+  const reasons = application.decision?.reasons ?? []
 
   return (
     <main className="page">
-      <Link className="back-link" to="/">← К форме заявки</Link>
+      <Link className="back-link" to="/applications">← Мои заявки</Link>
       <div className="detail-heading"><div><p className="section-kicker">Кредитование бизнеса</p><h1>Заявка {application.number}</h1><p className="intro-copy">Создана {date(application.createdAt)}</p></div><span className="status-badge"><span />{application.status.title}</span></div>
-      {justSaved && <div className="success-banner" role="status">{isDemo ? 'Заявка сохранена в этом браузере. Вы можете вернуться к ней по этой ссылке.' : 'Заявка сохранена в тестовой базе. Вы можете вернуться к ней по этой ссылке после входа.'}</div>}
+      {justSaved && <div className="success-banner" role="status">{isDemo ? 'Заявка сохранена в этом браузере. Вы можете вернуться к ней через «Мои заявки».' : 'Заявка сохранена в тестовой базе. Вы можете вернуться к ней через «Мои заявки».'}</div>}
       {refreshing && <p className="refresh-note" role="status">Обновляем статус автоматически</p>}
       {refreshError && <div className="refresh-error" role="alert"><span>{refreshError}</span><button type="button" className="secondary-button" onClick={() => setReloadKey((key) => key + 1)}>Повторить обновление</button></div>}
       <div className="content-grid detail-grid">
         <div className="detail-main">
           <section className="next-step-panel"><p className="side-label">Текущий статус</p><h2>{application.status.title}</h2><p>{application.status.description}</p><div className="next-action"><span className="next-action-icon" aria-hidden="true">✓</span><div><strong>Что делать дальше</strong><p>{application.status.clientNextAction}</p></div></div>
-            {application.status.code === 'Approved' && <div className="decision-detail"><strong>Запрошенные условия</strong><p>{money(application.amount)} на {application.termMonths} мес. Подробные условия предложения банк пока не передаёт через API.</p></div>}
-            {application.status.code === 'ApprovedWithConditions' && <div className="decision-detail"><strong>Предложены другие условия</strong><p>Точные сумма, срок и ставка пока не передаются через API. Дождитесь условий банка перед подтверждением.</p></div>}
+            {application.decision?.conditions && <div className="decision-detail"><strong>Изменённые условия</strong><p>{application.decision.conditions}</p></div>}
+            {reasons.length > 0 && <div className="decision-detail"><strong>{application.status.code === 'Rejected' ? 'Причины отказа' : application.status.code === 'ApprovedWithConditions' ? 'Почему изменились условия' : 'Основания решения'}</strong><ul className="reason-list">{reasons.map((reason) => <li key={reason.code}><b>{reason.title}</b><span>{reason.explanation}</span></li>)}</ul></div>}
             {application.status.code === 'NeedsClarification' && <div className="decision-detail"><strong>Какие данные нужны</strong><p>{decisionComment || 'Перечень дополнительных данных пока не передан. Проверьте историю заявки позже.'}</p></div>}
-            {application.status.code === 'Rejected' && <div className="decision-detail"><strong>Причина отказа</strong><p>{decisionComment || 'Причина пока не передана через API. Уточните её у банка.'}</p></div>}
+            {application.status.code === 'Rejected' && reasons.length === 0 && <div className="decision-detail"><strong>Причина отказа</strong><p>{decisionComment || 'Причина пока не указана. Уточните её у банка.'}</p></div>}
           </section>
+          {application.offer && <section className="offer-panel" aria-label="Кредитное предложение"><div className="panel-heading"><span className="panel-number">✓</span><div><h2>Предложение банка</h2><p>{application.offer.response === 'Pending' ? `Действует до ${date(application.offer.expiresAt)}` : `Статус: ${application.offer.response === 'Accepted' ? 'принято' : application.offer.response === 'Declined' ? 'отклонено' : 'истекло'}`}</p></div></div>
+            <dl className="offer-terms"><div><dt>Одобренная сумма</dt><dd>{money(application.offer.amount)}</dd></div><div><dt>Срок</dt><dd>{application.offer.termMonths} мес.</dd></div><div><dt>Ставка</dt><dd>{new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(application.offer.interestRate)} %</dd></div><div><dt>Ежемесячный платёж</dt><dd>{money(application.offer.monthlyPayment)}</dd></div></dl>
+          </section>}
+          {(actions.includes('acceptOffer') || actions.includes('declineOffer') || actions.includes('cancel')) && <section className="action-panel" aria-label="Действия по заявке"><h2>Действия по заявке</h2><div className="action-buttons">{actions.includes('acceptOffer') && <button type="button" className="primary-button" disabled={pendingAction !== null} onClick={() => void runAction('acceptOffer')}>{pendingAction === 'acceptOffer' ? 'Принимаем…' : 'Принять предложение'}</button>}{actions.includes('declineOffer') && <button type="button" className="secondary-button" disabled={pendingAction !== null} onClick={() => void runAction('declineOffer')}>{pendingAction === 'declineOffer' ? 'Отклоняем…' : 'Отклонить предложение'}</button>}{actions.includes('cancel') && <button type="button" className="secondary-button" disabled={pendingAction !== null} onClick={() => void runAction('cancel')}>{pendingAction === 'cancel' ? 'Отменяем…' : 'Отменить заявку'}</button>}</div>{actionError && <div className="submit-error" role="alert">{actionError}</div>}</section>}
+          {actionError && !actions.some((action) => ['acceptOffer', 'declineOffer', 'cancel'].includes(action)) && <div className="submit-error" role="alert">{actionError}</div>}
           <section className="details-panel"><div className="panel-heading"><span className="panel-number">2</span><div><h2>Сведения о заявке</h2><p>Проверьте данные, которые вы указали.</p></div></div>
             <dl className="detail-list"><div><dt>Номер заявки</dt><dd>{application.number}</dd></div><div><dt>Идентификатор</dt><dd className="id-value">{application.id}</dd></div><div><dt>Компания</dt><dd>{application.company.name}<small>ИНН {application.company.inn}</small></dd></div><div><dt>Продукт</dt><dd>{application.product.name}</dd></div><div><dt>Сумма</dt><dd>{money(application.amount)}</dd></div><div><dt>Срок</dt><dd>{application.termMonths} мес.</dd></div><div><dt>Цель</dt><dd>{application.purposeTitle}</dd></div>{application.purposeDescription && <div><dt>Описание цели</dt><dd>{application.purposeDescription}</dd></div>}</dl>
           </section>
