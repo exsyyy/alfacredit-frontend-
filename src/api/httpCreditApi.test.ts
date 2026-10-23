@@ -2,6 +2,30 @@ import { describe, expect, it } from 'vitest'
 import { createHttpCreditApi } from './httpCreditApi'
 
 describe('HTTP credit API adapter', () => {
+  it('loads a protected printable contract as HTML with JWT', async () => {
+    let call: { url: string; init?: RequestInit } | undefined
+    const api = createHttpCreditApi({ baseUrl: 'http://localhost:8080', getToken: () => 'jwt', fetchImpl: async (url, init) => {
+      call = { url: String(url), init }
+      return new Response('<html><body>Договор KD-1</body></html>', { headers: { 'Content-Type': 'text/html' } })
+    } })
+    const document = await api.getContractDocument('app/1')
+    expect(await document.text()).toContain('Договор KD-1')
+    expect(call?.url).toBe('http://localhost:8080/api/applications/app%2F1/contract/document')
+    expect(call?.init?.headers).toMatchObject({ Authorization: 'Bearer jwt' })
+  })
+
+  it('requests and submits a signing code using the new protected endpoints', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = []
+    const api = createHttpCreditApi({ baseUrl: '', getToken: () => 'jwt', fetchImpl: async (url, init) => {
+      calls.push({ url: String(url), init })
+      return new Response(JSON.stringify(String(url).endsWith('request-code') ? { demoCode: '654321', attemptsLeft: 5 } : { id: 'app-1', status: { code: 'Signed' } }))
+    } })
+    expect(await api.requestSigningCode('app-1')).toMatchObject({ demoCode: '654321' })
+    expect(await api.signContract('app-1', '654321')).toMatchObject({ status: { code: 'Signed' } })
+    expect(calls.map(({ url }) => url)).toEqual(['/api/applications/app-1/contract/sign/request-code', '/api/applications/app-1/contract/sign'])
+    expect(calls[1].init?.body).toBe('{"code":"654321"}')
+    for (const call of calls) expect(call.init).toMatchObject({ method: 'POST', headers: { Authorization: 'Bearer jwt' } })
+  })
   it('posts the agreed JSON body with a bearer token', async () => {
     let call: { url: string; init?: RequestInit } | undefined
     const fetchImpl = async (url: RequestInfo | URL, init?: RequestInit) => {

@@ -1,4 +1,4 @@
-import type { Application, ApplicationSummary, Company, CreateApplicationRequest, CreateApplicationResponse, PagedResponse, Product } from '../types/api'
+import type { Application, ApplicationSummary, Company, Contract, CreateApplicationRequest, CreateApplicationResponse, PagedResponse, Product, SignCodeResponse } from '../types/api'
 
 export interface CreditApi {
   getProducts(): Promise<Product[]>
@@ -9,4 +9,8 @@ export interface CreditApi {
   acceptOffer(id: string): Promise<Application>
   declineOffer(id: string): Promise<Application>
   cancelApplication(id: string): Promise<Application>
+  getContract(id: string): Promise<Contract>
+  getContractDocument(id: string): Promise<Blob>
+  requestSigningCode(id: string): Promise<SignCodeResponse>
+  signContract(id: string, code: string): Promise<Application>
 }

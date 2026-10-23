@@ -189,6 +189,39 @@ h2 { margin-bottom: 0; }
   .site-footer { padding: 20px; flex-direction: column; gap: 6px; }
 }
 
+.contract-panel, .disbursement-panel { background: #fff; border: 1px solid #e7e9eb; border-radius: 14px; padding: 28px; }
+.contract-panel .panel-heading { margin-bottom: 24px; }
+.account-number { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; font-size: 14px !important; }
+.contract-parties, .signing-panel > p, .schedule > p, #signing-help { color: #687278; font-size: 13px; line-height: 1.6; }
+.schedule { margin: 24px 0; }
+.schedule summary { font-weight: 700; cursor: pointer; }
+.table-scroll { overflow: auto; max-height: 340px; border: 1px solid #e7e9eb; border-radius: 8px; }
+.schedule table { border-collapse: collapse; width: 100%; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.schedule th, .schedule td { padding: 12px; border-bottom: 1px solid #e7e9eb; text-align: right; }
+.schedule th { position: sticky; top: 0; background: #f7f8f9; color: #687278; font-weight: 600; }
+.schedule th:first-child, .schedule td:first-child { text-align: left; }
+.signing-panel { margin-top: 28px; padding-top: 24px; border-top: 1px solid #e7e9eb; }
+.signing-panel h3 { margin: 0; }
+.signing-panel form { margin-top: 20px; }
+.signing-panel label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 600; }
+.code-controls { display: flex; align-items: stretch; flex-wrap: wrap; gap: 12px; }
+.code-controls input { width: 160px; border: 1px solid #cbd0d4; border-radius: 8px; padding: 12px; font-size: 21px; letter-spacing: .15em; }
+.simulation-note { background: #fff6dc; color: #6f531b; border-radius: 8px; padding: 12px 16px; font-size: 13px; line-height: 1.6; }
+.disbursement-panel { border-color: #c4e0cd; }
+.disbursement-panel h2 { margin-top: 0; font-size: 22px; }
+.document-preview { margin-top: 20px; }
+.document-preview iframe { width: 100%; height: 560px; border: 1px solid #d8dde0; border-radius: 8px; margin-top: 12px; background: white; }
+.storage-settings { display: block; margin: 0 auto 20px; }
+.storage-notice { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 20; display: flex; gap: 24px; align-items: center; width: min(800px, calc(100% - 32px)); padding: 20px 24px; border: 1px solid #e0e4e7; border-radius: 12px; background: white; box-shadow: 0 8px 40px #17222f26; }
+.storage-notice p { margin: 8px 0; font-size: 13px; line-height: 1.5; color: #687278; }
+.storage-notice summary { cursor: pointer; font-size: 12px; color: #bd2e24; }
+.storage-notice button { flex: none; }
+@media (max-width: 600px) {
+  .contract-panel, .disbursement-panel { padding: 24px 20px; }
+  .storage-notice { padding: 16px; gap: 12px; flex-direction: column; align-items: stretch; bottom: 12px; }
+  .code-controls input { flex: 1; min-width: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }

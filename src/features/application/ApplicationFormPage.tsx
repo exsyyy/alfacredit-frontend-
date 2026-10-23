@@ -41,6 +41,11 @@ export default function ApplicationFormPage({ api, isDemo = true, onAuthExpired 
   }, [api, onAuthExpired, reloadKey])
 
   function update<K extends keyof ApplicationFormValues>(key: K, value: ApplicationFormValues[K]) {
+    if (key === 'amount' || key === 'termMonths') {
+      // Reject signs, fractions and scientific notation instead of changing their meaning.
+      if (/[-+.,eE]/.test(value)) return
+      value = value.replace(/\D/g, '') as ApplicationFormValues[K]
+    }
     setValues((current) => ({ ...current, [key]: value, ...(key === 'productCode' ? { purpose: '' } : {}) }))
     setErrors((current) => ({ ...current, [key]: undefined, ...(key === 'productCode' ? { purpose: undefined } : {}) }))
     setSubmitError('')
@@ -104,7 +109,7 @@ export default function ApplicationFormPage({ api, isDemo = true, onAuthExpired 
               </div>
               <div className="field">
                 <label htmlFor="amount">Сумма кредита</label>
-                <div className="input-suffix"><input id="amount" inputMode="decimal" placeholder="Например, 1 500 000" value={values.amount} onChange={(event) => update('amount', event.target.value)} aria-invalid={!!errors.amount} aria-describedby={errors.amount ? 'amount-error' : undefined} /><span>₽</span></div>
+                <div className="input-suffix"><input id="amount" inputMode="numeric" placeholder="Например, 1 500 000" value={values.amount} onChange={(event) => update('amount', event.target.value)} aria-invalid={!!errors.amount} aria-describedby={errors.amount ? 'amount-error' : undefined} /><span>₽</span></div>
                 {errors.amount && <p className="field-error" id="amount-error">{errors.amount}</p>}
               </div>
               <div className="field">

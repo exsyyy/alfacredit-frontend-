@@ -1,6 +1,7 @@
 import type { CreditApi } from './creditApi'
 import type { Application, ApiProblem, CreateApplicationRequest } from '../types/api'
 import { mockCompanies, mockProducts, purposeTitles } from './mockData'
+import { demoContract } from './mockContract'
 
 const storageKey = 'alfacredit.demo.applications.v1'
 
@@ -55,7 +56,8 @@ export function createMockCreditApi(options: MockOptions): CreditApi {
       ...current,
       status: { ...current.status, code, title, description: title, clientNextAction: action === 'acceptOffer' ? 'Ожидайте подготовки договора.' : 'Действие сохранено.', isTerminal: action !== 'acceptOffer' },
       offer: current.offer ? { ...current.offer, response: action === 'cancel' ? current.offer.response : action === 'acceptOffer' ? 'Accepted' : 'Declined', respondedAt: action === 'cancel' ? current.offer.respondedAt : timestamp } : null,
-      availableActions: [], updatedAt: timestamp,
+      contract: action === 'acceptOffer' ? demoContract(current, timestamp) : current.contract ? { ...current.contract, status: 'Cancelled', signing: { ...current.contract.signing, canRequestCode: false } } : null,
+      availableActions: action === 'acceptOffer' ? ['signContract', 'cancel'] : [], updatedAt: timestamp,
       history: [...current.history, { fromStatus: current.status.code, toStatus: code, toStatusTitle: title, actor: 'Client', actorUserId: current.createdByUserId, comment: title, occurredAt: timestamp }],
     }
     applications[index] = updated
@@ -115,7 +117,7 @@ export function createMockCreditApi(options: MockOptions): CreditApi {
         createdByUserId: '01a15619-f9cc-70fe-bad8-2c6a70edfbd5',
         createdAt: timestamp, updatedAt: timestamp,
         availableActions: ['cancel'],
-        decision: null, offer: null,
+        decision: null, offer: null, contract: null, disbursement: null,
         history: [{
           fromStatus: null, toStatus: 'Submitted', toStatusTitle: 'Отправлена',
           actor: 'Client', actorUserId: '01a15619-f9cc-70fe-bad8-2c6a70edfbd5',
@@ -127,8 +129,16 @@ export function createMockCreditApi(options: MockOptions): CreditApi {
     },
     async getApplication(id: string) {
       await pause()
-      const application = readAll().find((item) => item.id === id)
+      const applications = readAll()
+      const application = applications.find((item) => item.id === id)
       if (!application) throw problem(404, 'Заявка не найдена.')
+      if (application.status.code === 'Signed' && Date.parse(now()) - Date.parse(application.contract!.signedAt!) >= 2000) {
+        application.status = { ...application.status, code: 'Disbursed', title: 'Средства выданы', description: 'Демонстрационная выдача завершена. Реальные средства не переводились.', clientNextAction: 'Ознакомьтесь с графиком платежей.', progressStep: 6, isTerminal: true }
+        application.disbursement = { id: `demo-disbursement-${id}`, amount: application.contract!.amount, account: application.contract!.disbursementAccount, paymentOrderNumber: `DEMO-${application.number}`, status: 'Completed', requestedAt: application.contract!.signedAt!, completedAt: now(), error: null }
+        application.updatedAt = now()
+        application.history.push({ fromStatus: 'Signed', toStatus: 'Disbursed', toStatusTitle: 'Средства выданы (демо)', actor: 'System', actorUserId: null, comment: 'Имитация выдачи: деньги не переводились.', occurredAt: now() })
+        saveAll(applications)
+      }
       return application
     },
     async listApplications(page = 1) {
@@ -145,5 +155,47 @@ export function createMockCreditApi(options: MockOptions): CreditApi {
     acceptOffer: (id) => changeApplication(id, 'acceptOffer'),
     declineOffer: (id) => changeApplication(id, 'declineOffer'),
     cancelApplication: (id) => changeApplication(id, 'cancel'),
+    async getContract(id) {
+      await pause()
+      const application = readAll().find((item) => item.id === id)
+      if (!application?.contract) throw problem(404, 'Договор ещё не сформирован.')
+      return demoContract(application, application.contract.createdAt, application.contract)
+    },
+    async getContractDocument(id) {
+      const contract = await this.getContract(id)
+      return new Blob([`<!doctype html><html lang="ru"><meta charset="utf-8"><title>Демонстрационный договор</title><body><h1>Демонстрационный договор ${contract.number}</h1><p>Имитация. Юридической силы не имеет.</p><p>Сумма: ${contract.amount} RUB. Срок: ${contract.termMonths} мес. Ставка: ${contract.interestRate}%.</p></body></html>`], { type: 'text/html' })
+    },
+    async requestSigningCode(id) {
+      await pause()
+      const applications = readAll()
+      const application = applications.find((item) => item.id === id)
+      if (!application?.contract || !application.availableActions.includes('signContract') || Date.parse(application.contract.signingDeadline) <= Date.parse(now())) throw problem(409, 'Подписание недоступно.')
+      const codeExpiresAt = new Date(Date.parse(now()) + 600000).toISOString()
+      application.contract.signing = { codeRequestedAt: now(), codeExpiresAt, attemptsLeft: 5, canRequestCode: true }
+      saveAll(applications)
+      return { contractNumber: application.contract.number, deliveredVia: 'Feed', codeExpiresAt, attemptsLeft: 5, demoCode: '123456' }
+    },
+    async signContract(id, code) {
+      await pause()
+      const applications = readAll()
+      const application = applications.find((item) => item.id === id)
+      const contract = application?.contract
+      if (!application || !contract || !application.availableActions.includes('signContract') || Date.parse(contract.signingDeadline) <= Date.parse(now())) throw problem(409, 'Подписание недоступно.')
+      if (!contract.signing.codeExpiresAt || Date.parse(contract.signing.codeExpiresAt) <= Date.parse(now()) || contract.signing.attemptsLeft <= 0) throw problem(409, 'Код истёк или попытки исчерпаны. Запросите новый код.')
+      if (code !== '123456') {
+        contract.signing.attemptsLeft -= 1
+        saveAll(applications)
+        throw problem(400, 'Неверный код.', { code: ['Неверный код подтверждения.'] })
+      }
+      contract.status = 'Signed'
+      contract.signedAt = now()
+      contract.signing.canRequestCode = false
+      application.status = { ...application.status, code: 'Signed', title: 'Договор подписан', description: 'Договор подписан. Готовим демонстрационную выдачу.', clientNextAction: 'Ожидайте выдачи.', progressStep: 5, isTerminal: false }
+      application.availableActions = []
+      application.updatedAt = now()
+      application.history.push({ fromStatus: 'ContractSigning', toStatus: 'Signed', toStatusTitle: 'Договор подписан (демо)', actor: 'Client', actorUserId: application.createdByUserId, comment: 'Подписано демонстрационным кодом.', occurredAt: now() })
+      saveAll(applications)
+      return application
+    },
   }
 }

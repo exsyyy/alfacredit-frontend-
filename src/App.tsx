@@ -6,6 +6,7 @@ import ApplicationFormPage from './features/application/ApplicationFormPage'
 import ApplicationPage from './features/application/ApplicationPage'
 import ApplicationsListPage from './features/application/ApplicationsListPage'
 import LoginPanel from './features/auth/LoginPanel'
+import StorageNotice from './features/privacy/StorageNotice'
 
 export default function App({ api, auth }: { api: CreditApi; auth?: AuthApi }) {
   const [session, setSession] = useState(() => auth?.current() ?? null)
@@ -32,6 +33,7 @@ export default function App({ api, auth }: { api: CreditApi; auth?: AuthApi }) {
           <Route path="*" element={<main className="page"><h1>Страница не найдена</h1><Link to="/">К форме заявки</Link></main>} />
         </Routes>}
       <footer className="site-footer"><span>АльфаКредит · прототип для хакатона</span><span>{isDemo ? 'Данные и условия — демонстрационные' : 'Подключение к локальному API'}</span></footer>
+      <StorageNotice />
     </div>
   )
 }

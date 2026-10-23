@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import type { CreditApi } from '../../api/creditApi'
 import type { ApiProblem, Application } from '../../types/api'
+import ContractPanel from './ContractPanel'
 
 const money = (value: number) => `${new Intl.NumberFormat('ru-RU').format(value)} ₽`
 const date = (value: string) => new Intl.DateTimeFormat('ru-RU', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(value))
 
-const processingStatuses = new Set(['Submitted', 'Validating', 'Enriching', 'Scoring', 'Deciding', 'ManualReview', 'Signed'])
-const shouldRefresh = (application: Application) => application.offer?.response === 'Pending' || (!application.status.isTerminal && processingStatuses.has(application.status.code))
+const processingStatuses = new Set(['Submitted', 'Validating', 'Enriching', 'Scoring', 'Deciding', 'ManualReview', 'ContractSigning', 'Signed'])
+const shouldRefresh = (application: Application, isDemo: boolean) => !application.status.isTerminal && ((application.offer?.response === 'Pending') || (processingStatuses.has(application.status.code) && (!isDemo || ['ContractSigning', 'Signed'].includes(application.status.code))))
 type Action = 'acceptOffer' | 'declineOffer' | 'cancel'
 
 export default function ApplicationPage({ api, isDemo = true, onAuthExpired }: { api: CreditApi; isDemo?: boolean; onAuthExpired?: () => void }) {
@@ -19,9 +20,10 @@ export default function ApplicationPage({ api, isDemo = true, onAuthExpired }: {
   const [error, setError] = useState('')
   const [refreshError, setRefreshError] = useState('')
   const [actionError, setActionError] = useState('')
-  const [pendingAction, setPendingAction] = useState<Action | null>(null)
+  const [pendingAction, setPendingAction] = useState<Action | 'requestCode' | 'signContract' | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const actionLock = useRef(false)
+  const requestGeneration = useRef(0)
 
   useEffect(() => {
     let active = true
@@ -29,16 +31,17 @@ export default function ApplicationPage({ api, isDemo = true, onAuthExpired }: {
     let timer: ReturnType<typeof setTimeout> | undefined
     if (!id) { setError('Не указан идентификатор заявки.'); setLoading(false); return }
     const load = async () => {
+      const generation = requestGeneration.current
       try {
         const result = await api.getApplication(id)
-        if (!active) return
+        if (!active || generation !== requestGeneration.current || actionLock.current) return
         setApplication(result)
         hasApplication = true
         setError('')
         setRefreshError('')
-        if (!isDemo && shouldRefresh(result)) timer = setTimeout(load, 2500)
+        if (shouldRefresh(result, isDemo)) timer = setTimeout(load, 2500)
       } catch (problem) {
-        if (!active) return
+        if (!active || generation !== requestGeneration.current || actionLock.current) return
         const issue = problem as ApiProblem
         if (issue?.status === 401) { onAuthExpired?.(); return }
         const message = issue?.title || 'Не удалось обновить заявку.'
@@ -52,25 +55,33 @@ export default function ApplicationPage({ api, isDemo = true, onAuthExpired }: {
     return () => { active = false; if (timer) clearTimeout(timer) }
   }, [api, id, isDemo, onAuthExpired, reloadKey])
 
-  const runAction = async (action: Action) => {
-    if (!id || actionLock.current) return
+  const beginAction = (action: Action | 'requestCode' | 'signContract') => {
+    if (actionLock.current) return false
     actionLock.current = true
+    requestGeneration.current += 1
     setPendingAction(action)
+    return true
+  }
+  const endAction = () => {
+    actionLock.current = false
+    setPendingAction(null)
+    setReloadKey((key) => key + 1)
+  }
+
+  const runAction = async (action: Action) => {
+    if (!id || !beginAction(action)) return
     setActionError('')
     try {
       const updated = action === 'acceptOffer' ? await api.acceptOffer(id)
         : action === 'declineOffer' ? await api.declineOffer(id)
           : await api.cancelApplication(id)
       setApplication(updated)
-      setReloadKey((key) => key + 1)
     } catch (problem) {
       const issue = problem as ApiProblem
       if (issue?.status === 401) { onAuthExpired?.(); return }
       setActionError(issue?.title || 'Не удалось выполнить действие. Повторите попытку.')
-      if (issue?.status === 409) setReloadKey((key) => key + 1)
     } finally {
-      actionLock.current = false
-      setPendingAction(null)
+      endAction()
     }
   }
 
@@ -78,7 +89,7 @@ export default function ApplicationPage({ api, isDemo = true, onAuthExpired }: {
   if (error || !application) return <main className="page"><div className="state-panel error-panel" role="alert"><h1>{error || 'Заявка не найдена.'}</h1><p>Проверьте ссылку или повторите загрузку.</p><button type="button" className="secondary-button" onClick={() => { setLoading(true); setReloadKey((key) => key + 1) }}>Повторить</button><Link to="/applications" className="text-link">Мои заявки</Link></div></main>
 
   const decisionComment = [...application.history].reverse().find((entry) => entry.toStatus === application.status.code && entry.comment?.trim())?.comment
-  const refreshing = !isDemo && shouldRefresh(application) && !refreshError
+  const refreshing = shouldRefresh(application, isDemo) && !refreshError
   const actions = application.availableActions ?? []
   const reasons = application.decision?.reasons ?? []
 
@@ -92,11 +103,15 @@ export default function ApplicationPage({ api, isDemo = true, onAuthExpired }: {
       <div className="content-grid detail-grid">
         <div className="detail-main">
           <section className="next-step-panel"><p className="side-label">Текущий статус</p><h2>{application.status.title}</h2><p>{application.status.description}</p><div className="next-action"><span className="next-action-icon" aria-hidden="true">✓</span><div><strong>Что делать дальше</strong><p>{application.status.clientNextAction}</p></div></div>
+            {application.decision?.isSimulated && <p className="simulation-note" role="note">Решение менеджера смоделировано. Настоящий сотрудник заявку не рассматривал.</p>}
             {application.decision?.conditions && <div className="decision-detail"><strong>Изменённые условия</strong><p>{application.decision.conditions}</p></div>}
             {reasons.length > 0 && <div className="decision-detail"><strong>{application.status.code === 'Rejected' ? 'Причины отказа' : application.status.code === 'ApprovedWithConditions' ? 'Почему изменились условия' : 'Основания решения'}</strong><ul className="reason-list">{reasons.map((reason) => <li key={reason.code}><b>{reason.title}</b><span>{reason.explanation}</span></li>)}</ul></div>}
             {application.status.code === 'NeedsClarification' && <div className="decision-detail"><strong>Какие данные нужны</strong><p>{decisionComment || 'Перечень дополнительных данных пока не передан. Проверьте историю заявки позже.'}</p></div>}
             {application.status.code === 'Rejected' && reasons.length === 0 && <div className="decision-detail"><strong>Причина отказа</strong><p>{decisionComment || 'Причина пока не указана. Уточните её у банка.'}</p></div>}
           </section>
+          {application.contract && <ContractPanel key={`${application.id}-${application.contract.id}`} api={api} application={application} busy={pendingAction !== null} onBegin={beginAction} onEnd={endAction} onUpdated={setApplication} onReload={() => setReloadKey((key) => key + 1)} onAuthExpired={onAuthExpired} />}
+          {application.status.code === 'Signed' && <section className="disbursement-panel" aria-label="Выдача кредита"><h2>Ожидаем выдачи средств</h2><p>Договор подписан. Карточка обновляется автоматически до завершения выдачи.</p>{application.disbursement?.status === 'Failed' && <p className="submit-error" role="alert">{application.disbursement.error || 'Выдача пока не выполнена.'} Следите за статусом заявки. Если задержка сохраняется, обратитесь в банк.</p>}</section>}
+          {application.disbursement?.status === 'Completed' && <section className="disbursement-panel" aria-label="Выдача кредита"><h2>Кредит выдан</h2><dl className="detail-list"><div><dt>Сумма выдачи</dt><dd>{money(application.disbursement.amount)}</dd></div><div><dt>Счёт зачисления</dt><dd className="account-number">{application.disbursement.account}</dd></div><div><dt>Дата выдачи</dt><dd>{application.disbursement.completedAt ? date(application.disbursement.completedAt) : 'Уточняется'}</dd></div><div><dt>Платёжное поручение</dt><dd>{application.disbursement.paymentOrderNumber || 'Уточняется'}</dd></div></dl></section>}
           {application.offer && <section className="offer-panel" aria-label="Кредитное предложение"><div className="panel-heading"><span className="panel-number">✓</span><div><h2>Предложение банка</h2><p>{application.offer.response === 'Pending' ? `Действует до ${date(application.offer.expiresAt)}` : `Статус: ${application.offer.response === 'Accepted' ? 'принято' : application.offer.response === 'Declined' ? 'отклонено' : 'истекло'}`}</p></div></div>
             <dl className="offer-terms"><div><dt>Одобренная сумма</dt><dd>{money(application.offer.amount)}</dd></div><div><dt>Срок</dt><dd>{application.offer.termMonths} мес.</dd></div><div><dt>Ставка</dt><dd>{new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(application.offer.interestRate)} %</dd></div><div><dt>Ежемесячный платёж</dt><dd>{money(application.offer.monthlyPayment)}</dd></div></dl>
           </section>}

@@ -1,4 +1,4 @@
-/** JSON contracts from backend docs/api.md. Dates are ISO 8601 strings, money is RUB. */
+/** JSON contracts from backend docs/api.md and docs/completion-flow.md (b161c41). Dates are ISO 8601, money is RUB. */
 export type LoanPurpose = 'WorkingCapital' | 'Equipment' | 'Expansion' | 'Refinancing' | 'Other'
 
 export interface Product {
@@ -77,6 +77,7 @@ export type DecisionType = 'Approved' | 'ApprovedWithConditions' | 'Rejected' | 
 export interface Decision {
   type: DecisionType
   isFinal: boolean
+  isSimulated: boolean
   decidedBy: 'Auto' | 'Manager'
   recommendedType: DecisionType | null
   approvedAmount: number | null
@@ -97,6 +98,63 @@ export interface Offer {
   expiresAt: string
   response: 'Pending' | 'Accepted' | 'Declined' | 'Expired'
   respondedAt: string | null
+}
+
+export interface ContractSigning {
+  codeRequestedAt: string | null
+  codeExpiresAt: string | null
+  attemptsLeft: number
+  canRequestCode: boolean
+}
+
+export interface ContractSummary {
+  id: string
+  number: string
+  status: 'AwaitingSignature' | 'Signed' | 'Expired' | 'Cancelled'
+  amount: number
+  termMonths: number
+  interestRate: number
+  monthlyPayment: number
+  totalPayment: number
+  totalInterest: number
+  disbursementAccount: string
+  createdAt: string
+  signingDeadline: string
+  signedAt: string | null
+  signing: ContractSigning
+  documentUrl: string
+}
+
+export interface Contract extends ContractSummary {
+  applicationId: string
+  applicationNumber: string
+  lender: { name: string }
+  borrower: { companyId: string; name: string; inn: string; ogrn: string; address: string; headName: string }
+  product: { code: string; name: string }
+  purpose: LoanPurpose
+  purposeTitle: string
+  signedBy: { userId: string; fullName: string } | null
+  signatureMethod: string | null
+  schedule: Array<{ number: number; dueDate: string; payment: number; principal: number; interest: number; balance: number }>
+}
+
+export interface SignCodeResponse {
+  contractNumber: string
+  deliveredVia: string
+  codeExpiresAt: string
+  attemptsLeft: number
+  demoCode: string | null
+}
+
+export interface Disbursement {
+  id: string
+  amount: number
+  account: string
+  paymentOrderNumber: string | null
+  status: 'Completed' | 'Failed'
+  requestedAt: string
+  completedAt: string | null
+  error: string | null
 }
 
 export interface ApplicationSummary {
@@ -138,6 +196,8 @@ export interface Application {
   availableActions: string[]
   decision: Decision | null
   offer: Offer | null
+  contract: ContractSummary | null
+  disbursement: Disbursement | null
   history: ApplicationHistoryEntry[]
 }
 

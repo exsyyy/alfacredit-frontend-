@@ -19,6 +19,30 @@ function fillForm() {
 describe('application flow', () => {
   beforeEach(() => localStorage.clear())
 
+  it('keeps letters out of numeric inputs including pasted text', async () => {
+    render(<MemoryRouter><App api={createMockCreditApi({ storage: localStorage, delayMs: 0 })} /></MemoryRouter>)
+    const amount = await screen.findByLabelText('Сумма кредита')
+    const term = screen.getByLabelText('Срок, месяцев')
+    fireEvent.change(amount, { target: { value: '500 000dgf' } })
+    fireEvent.change(term, { target: { value: '36dsfdsf' } })
+    expect(amount).toHaveValue('500000')
+    expect(term).toHaveValue('36')
+    fireEvent.change(term, { target: { value: '1.2e3' } })
+    expect(term).toHaveValue('36')
+    fireEvent.change(amount, { target: { value: '-1500000' } })
+    expect(amount).toHaveValue('500000')
+  })
+
+  it('remembers the cookie notice choice after reopening the app', async () => {
+    const api = createMockCreditApi({ storage: localStorage, delayMs: 0 })
+    const view = render(<MemoryRouter><App api={api} /></MemoryRouter>)
+    expect(screen.getByRole('region', { name: 'Cookie и хранение данных' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
+    view.unmount()
+    render(<MemoryRouter><App api={api} /></MemoryRouter>)
+    expect(screen.queryByRole('region', { name: 'Cookie и хранение данных' })).not.toBeInTheDocument()
+  })
+
   it('shows required field errors before sending', async () => {
     const api = createMockCreditApi({ storage: localStorage, delayMs: 0 })
     render(<MemoryRouter><App api={api} /></MemoryRouter>)
