@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import Disclosure from '../../components/Disclosure'
+import Presence from '../../components/Presence'
 import type { CreditApi } from '../../api/creditApi'
 import type { ApiProblem, Application, Contract, SignCodeResponse } from '../../types/api'
 
@@ -14,9 +16,10 @@ interface Props {
   onUpdated: (application: Application) => void
   onReload: () => void
   onAuthExpired?: () => void
+  onSigned?: () => void
 }
 
-export default function ContractPanel({ api, application, busy, onBegin, onEnd, onUpdated, onReload, onAuthExpired }: Props) {
+export default function ContractPanel({ api, application, busy, onBegin, onEnd, onUpdated, onReload, onAuthExpired, onSigned }: Props) {
   const summary = application.contract!
   const [contract, setContract] = useState<Contract | null>(null)
   const [loadError, setLoadError] = useState('')
@@ -61,6 +64,8 @@ export default function ContractPanel({ api, application, busy, onBegin, onEnd, 
   const canSign = application.availableActions.includes('signContract') && summary.status === 'AwaitingSignature' && Date.parse(summary.signingDeadline) > Date.now()
   const hasCode = Boolean(signing.codeRequestedAt)
   const codeUsable = hasCode && !codeExpired && signing.attemptsLeft > 0
+  // PostgreSQL rounds the response's 100 ns timestamp to microseconds; compare instants, not serialized text.
+  const issuedCodeIsCurrent = Boolean(issued && signing.codeExpiresAt && Math.abs(Date.parse(issued.codeExpiresAt) - Date.parse(signing.codeExpiresAt)) <= 1)
 
   async function requestCode() {
     if (!canSign || !signing.canRequestCode || !onBegin('requestCode')) return
@@ -90,6 +95,7 @@ export default function ContractPanel({ api, application, busy, onBegin, onEnd, 
       setCode('')
       setIssued(null)
       onUpdated(updated)
+      onSigned?.()
     } catch (problem) {
       const issue = problem as ApiProblem
       if (issue?.status === 401) onAuthExpired?.()
@@ -125,14 +131,14 @@ export default function ContractPanel({ api, application, busy, onBegin, onEnd, 
     <dl className="offer-terms"><div><dt>Сумма кредита</dt><dd>{money(summary.amount)}</dd></div><div><dt>Срок и ставка</dt><dd>{summary.termMonths} мес. · {summary.interestRate} %</dd></div><div><dt>Ежемесячный платёж</dt><dd>{money(summary.monthlyPayment)}</dd></div><div><dt>Всего к возврату</dt><dd>{money(summary.totalPayment)}</dd></div><div><dt>Переплата</dt><dd>{money(summary.totalInterest)}</dd></div><div><dt>Счёт зачисления</dt><dd className="account-number">{summary.disbursementAccount}</dd></div></dl>
     {loadError ? <div className="submit-error" role="alert">{loadError}<button className="text-button" type="button" onClick={() => setReload((value) => value + 1)}>Повторить загрузку договора</button></div> : !contract ? <p role="status">Загружаем договор и график платежей…</p> : <>
       <p className="contract-parties">{contract.lender.name}<br />Заёмщик: {contract.borrower.name}, ИНН {contract.borrower.inn}</p>
-      <details className="schedule" open><summary>График платежей · {contract.schedule.length} платежей</summary><p>{application.disbursement?.status === 'Completed' ? 'Даты платежей рассчитаны от даты выдачи средств.' : 'До выдачи средств даты платежей ориентировочные.'}</p><div className="table-scroll" tabIndex={0} role="region" aria-label="Прокрутка графика"><table aria-label="График платежей"><thead><tr><th scope="col">№</th><th scope="col">Дата</th><th scope="col">Платёж</th><th scope="col">Основной долг</th><th scope="col">Проценты</th><th scope="col">Остаток</th></tr></thead><tbody>{contract.schedule.map((row) => <tr key={row.number}><td>{row.number}</td><td>{new Intl.DateTimeFormat('ru-RU').format(new Date(`${row.dueDate}T12:00:00`))}</td><td>{money(row.payment)}</td><td>{money(row.principal)}</td><td>{money(row.interest)}</td><td>{money(row.balance)}</td></tr>)}</tbody></table></div></details>
+      <Disclosure className="schedule" defaultOpen summary={<>График платежей · {contract.schedule.length} платежей</>}><p>{application.disbursement?.status === 'Completed' ? 'Даты платежей рассчитаны от даты выдачи средств.' : 'До выдачи средств даты платежей ориентировочные.'}</p><div className="table-scroll" tabIndex={0} role="region" aria-label="Прокрутка графика"><table aria-label="График платежей"><thead><tr><th scope="col">№</th><th scope="col">Дата</th><th scope="col">Платёж</th><th scope="col">Основной долг</th><th scope="col">Проценты</th><th scope="col">Остаток</th></tr></thead><tbody>{contract.schedule.map((row) => <tr key={row.number}><td>{row.number}</td><td>{new Intl.DateTimeFormat('ru-RU').format(new Date(`${row.dueDate}T12:00:00`))}</td><td>{money(row.payment)}</td><td>{money(row.principal)}</td><td>{money(row.interest)}</td><td>{money(row.balance)}</td></tr>)}</tbody></table></div></Disclosure>
       <button type="button" className="secondary-button" disabled={documentBusy || busy} onClick={() => void loadDocument()}>{documentBusy ? 'Загружаем документ…' : 'Открыть печатную форму'}</button>
       {documentError && <p className="submit-error" role="alert">{documentError}</p>}
-      {documentUrl && <div className="document-preview"><div className="action-buttons"><button type="button" className="secondary-button" disabled={!documentReady} onClick={() => { try { frame.current?.contentWindow?.print() } catch { setDocumentError('Скачайте документ и откройте его для печати.') } }}>Печать</button><a className="text-link" href={documentUrl} download={`${summary.number}.html`}>Скачать HTML</a><button type="button" className="text-button" onClick={() => setDocumentUrl('')}>Закрыть документ</button></div><iframe ref={frame} title="Печатная форма договора" srcDoc={documentHtml} sandbox="allow-same-origin allow-modals" onLoad={() => setDocumentReady(true)} /></div>}
+      <Presence show={!!documentUrl}><div className="document-preview"><div className="action-buttons"><button type="button" className="secondary-button" disabled={!documentReady} onClick={() => { try { frame.current?.contentWindow?.print() } catch { setDocumentError('Скачайте документ и откройте его для печати.') } }}>Печать</button><a className="secondary-button document-download" href={documentUrl} download={`${summary.number}.html`}>Скачать HTML</a><button type="button" className="text-button" onClick={() => setDocumentUrl('')}>Закрыть документ</button></div><iframe key={documentUrl} ref={frame} title="Печатная форма договора" srcDoc={documentHtml} sandbox="allow-same-origin allow-modals" onLoad={() => setDocumentReady(true)} /></div></Presence>
     </>}
     {canSign && <div className="signing-panel"><h3>Подписание договора</h3><p>Ознакомьтесь с условиями и графиком платежей, затем подтвердите подписание кодом.</p>
       <button type="button" className="secondary-button" disabled={busy || !signing.canRequestCode || !contract} onClick={() => void requestCode()}>{busy ? 'Выполняем запрос…' : hasCode ? 'Получить новый код' : 'Получить код'}</button>
-      {issued?.demoCode && issued.codeExpiresAt === signing.codeExpiresAt && !codeExpired && <div className="demo-code-panel"><p className="simulation-note" role="note">Имитация SMS. Демо-код: {issued.demoCode}. Настоящее SMS не отправлялось.</p><button type="button" className="secondary-button" disabled={busy} onClick={() => { setCode(issued.demoCode!); setError('') }}>Вставить демо-код</button><p>Код возвращён тестовым API для проверки полного сценария. После обновления страницы запросите новый код.</p></div>}
+      {issued?.demoCode && issuedCodeIsCurrent && !codeExpired && <div className="demo-code-panel"><p className="simulation-note" role="note">Имитация SMS. Демо-код: {issued.demoCode}. Настоящее SMS не отправлялось.</p><button type="button" className="secondary-button" disabled={busy} onClick={() => { setCode(issued.demoCode!); setError('') }}>Вставить демо-код</button><p>Код возвращён тестовым API для проверки полного сценария. После обновления страницы запросите новый код.</p></div>}
       {issued && !issued.demoCode && <p role="status">Код отправлен в ленту событий кабинета.</p>}
       {hasCode && <form onSubmit={(event) => void sign(event)} noValidate><label htmlFor="signing-code">Код подтверждения</label><div className="code-controls"><input id="signing-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(event) => { setCode(event.target.value.replace(/\D/g, '').slice(0, 6)); setError('') }} aria-describedby="signing-help" disabled={busy} /><button className="primary-button" type="submit" disabled={busy || !codeUsable || code.length !== 6 || !contract}>Подписать договор</button></div><div id="signing-help"><p>Осталось попыток: {signing.attemptsLeft}</p><p>Код действует до {date(signing.codeExpiresAt!)}</p></div></form>}
       {codeExpired && <p className="submit-error" role="alert">Срок действия кода истёк. Запросите новый код.</p>}

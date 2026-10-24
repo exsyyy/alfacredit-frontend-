@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation } from 'react-router-dom'
+import useMotionNavigate from '../../components/useMotionNavigate'
 import type { CreditApi } from '../../api/creditApi'
 import type { ApiProblem, Company } from '../../types/api'
 import type { FinancingPreviewRequest } from '../../types/financing'
@@ -10,7 +11,7 @@ import { draftKey, readDraft, validateNeed, type FinancingDraft } from './financ
 import { useFinancingPreview } from './useFinancingPreview'
 
 export default function FinancingFlowPage({ api, owner, isDemo, onAuthExpired }: { api: CreditApi; owner: string; isDemo: boolean; onAuthExpired?: () => void }) {
-  const navigate = useNavigate()
+  const navigate = useMotionNavigate()
   const location = useLocation()
   const step = location.pathname.split('/').pop() ?? 'need'
   const [draft, setDraft] = useState(() => readDraft(owner))

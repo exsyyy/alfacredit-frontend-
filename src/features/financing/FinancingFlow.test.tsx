@@ -37,7 +37,7 @@ describe('financing journey', () => {
     await enterNeed()
     expect(await screen.findByRole('heading', { name: 'Выберите подходящий вариант' })).toBeInTheDocument()
     await screen.findByRole('radio', { name: 'Выбрать Оборотный кредит' })
-    expect(screen.getByText('1 663 116,74 ₽')).toBeInTheDocument()
+    expect(within(await screen.findByRole('region', { name: 'Стоимость выбранного варианта' })).getByText('1 663 116,74 ₽')).toBeInTheDocument()
     expect(creates).toBe(0)
     await goToReview()
     expect(await screen.findByRole('heading', { name: 'Проверьте данные перед отправкой' })).toBeInTheDocument()
@@ -78,9 +78,9 @@ describe('financing journey', () => {
     const latest = structuredClone(mockFinancingPreview)
     latest.options[0].cost.monthlyPayment = 111111.11
     await act(async () => requests[1].finish(latest))
-    expect(await screen.findByText(/111 111,11 ₽/)).toBeInTheDocument()
+    expect(await within(screen.getByRole('complementary', { name: 'Выбранные условия' })).findByText('111 111,11 ₽')).toBeInTheDocument()
     await act(async () => requests[0].finish(mockFinancingPreview))
-    expect(screen.getByText(/111 111,11 ₽/)).toBeInTheDocument()
+    expect(within(screen.getByRole('complementary', { name: 'Выбранные условия' })).getByText('111 111,11 ₽')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Проверить данные' })).toBeEnabled()
   })
 

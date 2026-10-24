@@ -6,6 +6,7 @@ import { createMockCreditApi } from './api/mockCreditApi'
 import { createHttpCreditApi } from './api/httpCreditApi'
 import { createHttpAuthApi } from './api/httpAuthApi'
 import './styles.css'
+import './desktop.css'
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
 const auth = baseUrl ? createHttpAuthApi({ baseUrl, storage: window.sessionStorage }) : undefined

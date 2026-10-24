@@ -4,6 +4,7 @@ import type { CreditApi } from '../../api/creditApi'
 import type { ApiProblem, Application } from '../../types/api'
 import ContractPanel from './ContractPanel'
 import { calendarDate } from '../financing/financingDraft'
+import AnimatedStatus from '../../components/AnimatedStatus'
 
 const money = (value: number) => `${new Intl.NumberFormat('ru-RU').format(value)} ₽`
 const date = (value: string) => new Intl.DateTimeFormat('ru-RU', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(value))
@@ -25,6 +26,15 @@ export default function ApplicationPage({ api, isDemo = true, onAuthExpired }: {
   const [reloadKey, setReloadKey] = useState(0)
   const actionLock = useRef(false)
   const requestGeneration = useRef(0)
+  const statusPanel = useRef<HTMLElement>(null)
+  const scrollAfterSigning = useRef(false)
+
+  useEffect(() => {
+    if (!scrollAfterSigning.current || !['Signed', 'Disbursed'].includes(application?.status.code ?? '')) return
+    scrollAfterSigning.current = false
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    statusPanel.current?.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+  }, [application?.status.code])
 
   useEffect(() => {
     let active = true
@@ -97,20 +107,20 @@ export default function ApplicationPage({ api, isDemo = true, onAuthExpired }: {
   return (
     <main className="page">
       <Link className="back-link" to="/applications">← Мои заявки</Link>
-      <div className="detail-heading"><div><p className="section-kicker">Кредитование бизнеса</p><h1>Заявка {application.number}</h1><p className="intro-copy">Создана {date(application.createdAt)}</p></div><span className="status-badge"><span />{application.status.title}</span></div>
+      <div className="detail-heading"><div><p className="section-kicker">Кредитование бизнеса</p><h1>Заявка {application.number}</h1><p className="intro-copy">Создана {date(application.createdAt)}</p></div><span className="status-badge" key={application.status.code}><span />{application.status.title}</span></div>
       {justSaved && <div className="success-banner" role="status">{isDemo ? 'Заявка сохранена в этом браузере. Вы можете вернуться к ней через «Мои заявки».' : 'Заявка сохранена в тестовой базе. Вы можете вернуться к ней через «Мои заявки».'}</div>}
       {refreshing && <p className="refresh-note" role="status">Обновляем статус автоматически</p>}
       {refreshError && <div className="refresh-error" role="alert"><span>{refreshError}</span><button type="button" className="secondary-button" onClick={() => setReloadKey((key) => key + 1)}>Повторить обновление</button></div>}
       <div className="content-grid detail-grid">
         <div className="detail-main">
-          <section className="next-step-panel"><p className="side-label">Текущий статус</p><h2>{application.status.title}</h2><p>{application.status.description}</p><div className="next-action"><span className="next-action-icon" aria-hidden="true">✓</span><div><strong>Что делать дальше</strong><p>{application.status.clientNextAction}</p></div></div>
+          <AnimatedStatus statusKey={`${application.id}-${application.status.code}`} panelRef={statusPanel}><p className="side-label">Текущий статус</p><h2>{application.status.title}</h2><p className="status-description">{application.status.description}</p><div className="next-action"><span className="next-action-icon" aria-hidden="true">✓</span><div><strong>Что делать дальше</strong><p>{application.status.clientNextAction}</p></div></div>
             {application.decision?.isSimulated && <p className="simulation-note" role="note">Решение менеджера смоделировано. Настоящий сотрудник заявку не рассматривал.</p>}
             {application.decision?.conditions && <div className="decision-detail"><strong>Изменённые условия</strong><p>{application.decision.conditions}</p></div>}
             {reasons.length > 0 && <div className="decision-detail"><strong>{application.status.code === 'Rejected' ? 'Причины отказа' : application.status.code === 'ApprovedWithConditions' ? 'Почему изменились условия' : 'Основания решения'}</strong><ul className="reason-list">{reasons.map((reason) => <li key={reason.code}><b>{reason.title}</b><span>{reason.explanation}</span></li>)}</ul></div>}
             {application.status.code === 'NeedsClarification' && <div className="decision-detail"><strong>Какие данные нужны</strong><p>{decisionComment || 'Перечень дополнительных данных пока не передан. Проверьте историю заявки позже.'}</p></div>}
             {application.status.code === 'Rejected' && reasons.length === 0 && <div className="decision-detail"><strong>Причина отказа</strong><p>{decisionComment || 'Причина пока не указана. Уточните её у банка.'}</p></div>}
-          </section>
-          {application.contract && <ContractPanel key={`${application.id}-${application.contract.id}`} api={api} application={application} busy={pendingAction !== null} onBegin={beginAction} onEnd={endAction} onUpdated={setApplication} onReload={() => setReloadKey((key) => key + 1)} onAuthExpired={onAuthExpired} />}
+          </AnimatedStatus>
+          {application.contract && <ContractPanel key={`${application.id}-${application.contract.id}`} api={api} application={application} busy={pendingAction !== null} onBegin={beginAction} onEnd={endAction} onUpdated={setApplication} onSigned={() => { scrollAfterSigning.current = true }} onReload={() => setReloadKey((key) => key + 1)} onAuthExpired={onAuthExpired} />}
           {application.status.code === 'Signed' && <section className="disbursement-panel" aria-label="Выдача кредита"><h2>Ожидаем выдачи средств</h2><p>Договор подписан. Карточка обновляется автоматически до завершения выдачи.</p>{application.disbursement?.status === 'Failed' && <p className="submit-error" role="alert">{application.disbursement.error || 'Выдача пока не выполнена.'} Следите за статусом заявки. Если задержка сохраняется, обратитесь в банк.</p>}</section>}
           {application.disbursement?.status === 'Completed' && <section className="disbursement-panel" aria-label="Выдача кредита"><h2>Кредит выдан</h2><dl className="detail-list"><div><dt>Сумма выдачи</dt><dd>{money(application.disbursement.amount)}</dd></div><div><dt>Счёт зачисления</dt><dd className="account-number">{application.disbursement.account}</dd></div><div><dt>Дата выдачи</dt><dd>{application.disbursement.completedAt ? date(application.disbursement.completedAt) : 'Уточняется'}</dd></div><div><dt>Платёжное поручение</dt><dd>{application.disbursement.paymentOrderNumber || 'Уточняется'}</dd></div></dl></section>}
           {application.offer && <section className="offer-panel" aria-label="Кредитное предложение"><div className="panel-heading"><span className="panel-number">✓</span><div><h2>Предложение банка</h2><p>{application.offer.response === 'Pending' ? `Действует до ${date(application.offer.expiresAt)}` : `Статус: ${application.offer.response === 'Accepted' ? 'принято' : application.offer.response === 'Declined' ? 'отклонено' : 'истекло'}`}</p></div></div>

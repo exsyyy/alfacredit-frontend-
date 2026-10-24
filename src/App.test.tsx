@@ -99,7 +99,8 @@ describe('application flow', () => {
     fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'Demo123!' } })
     fireEvent.click(screen.getByRole('button', { name: 'Войти' }))
     await screen.findByLabelText('Компания')
-    expect(screen.getByText(/Локальный API:/)).toBeInTheDocument()
+    expect(screen.queryByText(/Локальный API:/)).not.toBeInTheDocument()
+    expect(within(screen.getByRole('contentinfo')).getByRole('button', { name: 'Cookie и данные' })).toBeInTheDocument()
     expect(screen.queryByText(/данные сохраняются только в этом браузере/)).not.toBeInTheDocument()
   })
 

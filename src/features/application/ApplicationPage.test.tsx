@@ -29,6 +29,52 @@ async function signingExample() {
 describe('live application card', () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); localStorage.clear() })
 
+  it('smoothly returns to the current status after successful signing, without scrolling on load', async () => {
+    const { api } = await signingExample()
+    await api.requestSigningCode('app-1')
+    show(api)
+    await screen.findByRole('table', { name: 'График платежей' })
+    const statusPanel = screen.getByText('Текущий статус').closest('section')!
+    const scrollToStatus = vi.fn()
+    statusPanel.scrollIntoView = scrollToStatus
+    expect(scrollToStatus).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByLabelText('Код подтверждения'), { target: { value: '123456' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Подписать договор' }))
+    await screen.findByRole('heading', { name: 'Ожидаем выдачи средств' })
+    expect(scrollToStatus).toHaveBeenCalledExactlyOnceWith({ behavior: 'smooth', block: 'start' })
+  })
+
+  it('shows the issued demo code when the card rounds the same expiry instant to database precision', async () => {
+    const { api } = await signingExample()
+    const request = api.requestSigningCode
+    api.requestSigningCode = async id => {
+      const issued = await request(id)
+      return { ...issued, codeExpiresAt: issued.codeExpiresAt.replace('Z', '4567+00:00') }
+    }
+    show(api)
+    await screen.findByRole('table', { name: 'График платежей' })
+    fireEvent.click(await screen.findByRole('button', { name: 'Получить код' }))
+    expect(await screen.findByRole('button', { name: 'Вставить демо-код' })).toBeEnabled()
+  })
+
+  it('reloads the printable frame when reopening identical content before its closing animation ends', async () => {
+    const { api } = await signingExample()
+    let documentNumber = 0
+    vi.stubGlobal('URL', { createObjectURL: () => `blob:document-${++documentNumber}`, revokeObjectURL: () => undefined })
+    show(api)
+    await screen.findByRole('table', { name: 'График платежей' })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Открыть печатную форму' })); await Promise.resolve() })
+    const firstFrame = await screen.findByTitle('Печатная форма договора')
+    fireEvent.load(firstFrame)
+    expect(screen.getByRole('button', { name: 'Печать' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть документ' }))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Открыть печатную форму' })); await Promise.resolve() })
+    const reopenedFrame = await screen.findByTitle('Печатная форма договора')
+    expect(reopenedFrame).not.toBe(firstFrame)
+    fireEvent.load(reopenedFrame)
+    expect(screen.getByRole('button', { name: 'Печать' })).toBeEnabled()
+  })
+
   it('reloads the final schedule when payout completes on a later date', async () => {
     const { api, application } = await signingExample()
     const contract = await api.getContract('app-1')
