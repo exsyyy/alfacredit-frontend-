@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import MoneyInput from '../../components/MoneyInput'
 import type { CreditApi } from '../../api/creditApi'
 import type { ApiProblem, ApplicationFormValues, Company, FieldErrors, Product } from '../../types/api'
 import { toCreateRequest, validateApplicationForm } from './validation'
@@ -11,7 +12,8 @@ const formatMoney = (value: number) => `${new Intl.NumberFormat('ru-RU').format(
 
 export default function ApplicationFormPage({ api, isDemo = true, onAuthExpired }: { api: CreditApi; isDemo?: boolean; onAuthExpired?: () => void }) {
   const navigate = useNavigate()
-  const [values, setValues] = useState<ApplicationFormValues>(initialValues)
+  const [search] = useSearchParams()
+  const [values, setValues] = useState<ApplicationFormValues>(() => ({ ...initialValues, productCode: search.get('product') ?? '' }))
   const [products, setProducts] = useState<Product[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
@@ -109,7 +111,7 @@ export default function ApplicationFormPage({ api, isDemo = true, onAuthExpired 
               </div>
               <div className="field">
                 <label htmlFor="amount">Сумма кредита</label>
-                <div className="input-suffix"><input id="amount" inputMode="numeric" placeholder="Например, 1 500 000" value={values.amount} onChange={(event) => update('amount', event.target.value)} aria-invalid={!!errors.amount} aria-describedby={errors.amount ? 'amount-error' : undefined} /><span>₽</span></div>
+                <div className="input-suffix"><MoneyInput id="amount" placeholder="Например, 1 500 000" value={values.amount} onChange={(value) => update('amount', value)} aria-invalid={!!errors.amount} aria-describedby={errors.amount ? 'amount-error' : undefined} /><span>₽</span></div>
                 {errors.amount && <p className="field-error" id="amount-error">{errors.amount}</p>}
               </div>
               <div className="field">

@@ -1,4 +1,5 @@
 import type { CreditApi } from './creditApi'
+import type { FinancingPreview } from '../types/financing'
 import type { ApiProblem, Application, ApplicationSummary, Company, Contract, CreateApplicationResponse, PagedResponse, Product, SignCodeResponse } from '../types/api'
 
 interface HttpOptions {
@@ -33,6 +34,7 @@ export function createHttpCreditApi(options: HttpOptions): CreditApi {
   }
 
   return {
+    previewFinancing: (body, signal) => request<FinancingPreview>('/api/financing/preview', { method: 'POST', body: JSON.stringify(body), signal }),
     getProducts: () => request<Product[]>('/api/products', undefined, false),
     getCompanies: () => request<Company[]>('/api/companies'),
     createApplication: (body) => request<CreateApplicationResponse>('/api/applications', {

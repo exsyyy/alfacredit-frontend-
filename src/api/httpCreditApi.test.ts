@@ -2,6 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { createHttpCreditApi } from './httpCreditApi'
 
 describe('HTTP credit API adapter', () => {
+  it('previews financing with an abort signal, JWT and a calendar date without creating an application', async () => {
+    let call: { url: string; init?: RequestInit } | undefined
+    const body = { companyId: 'company-1', amount: 1500000, purpose: 'WorkingCapital' as const, needByDate: '2026-11-15', termMonths: 12 }
+    const controller = new AbortController()
+    const api = createHttpCreditApi({ baseUrl: '', getToken: () => 'jwt', fetchImpl: async (url, init) => {
+      call = { url: String(url), init }
+      return new Response(JSON.stringify({ calculationDate: '2026-10-24', options: [], notCompared: [], unsuitable: [] }))
+    } })
+    expect(await api.previewFinancing(body, controller.signal)).toMatchObject({ calculationDate: '2026-10-24' })
+    expect(call?.url).toBe('/api/financing/preview')
+    expect(call?.init).toMatchObject({ method: 'POST', signal: controller.signal, headers: { Authorization: 'Bearer jwt' } })
+    expect(JSON.parse(String(call?.init?.body))).toEqual(body)
+  })
   it('loads a protected printable contract as HTML with JWT', async () => {
     let call: { url: string; init?: RequestInit } | undefined
     const api = createHttpCreditApi({ baseUrl: 'http://localhost:8080', getToken: () => 'jwt', fetchImpl: async (url, init) => {

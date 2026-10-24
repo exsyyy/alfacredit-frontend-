@@ -43,6 +43,7 @@ export interface CreateApplicationRequest {
   termMonths: number
   purpose: LoanPurpose
   purposeDescription?: string
+  needByDate?: string
 }
 
 export interface CreateApplicationResponse {
@@ -95,6 +96,8 @@ export interface Offer {
   termMonths: number
   interestRate: number
   monthlyPayment: number
+  totalPayment?: number | null
+  totalInterest?: number | null
   expiresAt: string
   response: 'Pending' | 'Accepted' | 'Declined' | 'Expired'
   respondedAt: string | null
@@ -169,6 +172,7 @@ export interface ApplicationSummary {
   purposeTitle: string
   createdAt: string
   updatedAt: string
+  needByDate?: string | null
 }
 
 export interface PagedResponse<T> {
@@ -190,6 +194,7 @@ export interface Application {
   purpose: LoanPurpose
   purposeTitle: string
   purposeDescription: string | null
+  needByDate?: string | null
   createdByUserId: string
   createdAt: string
   updatedAt: string

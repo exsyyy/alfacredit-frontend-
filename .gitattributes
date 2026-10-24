@@ -1,0 +1,2 @@
+# Unified patches contain intentional context-only spaces; preserve portable LF.
+/integration/*.patch text eol=lf -whitespace

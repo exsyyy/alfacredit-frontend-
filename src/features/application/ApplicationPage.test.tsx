@@ -76,7 +76,8 @@ describe('live application card', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Подписать договор' }))
     expect(await screen.findByText('Неверный код подтверждения.')).toBeInTheDocument()
     expect(await screen.findByText('Осталось попыток: 4')).toBeInTheDocument()
-    fireEvent.change(input, { target: { value: '123456' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Вставить демо-код' }))
+    expect(input).toHaveValue('123456')
     fireEvent.click(screen.getByRole('button', { name: 'Подписать договор' }))
     expect(await screen.findByRole('heading', { name: 'Ожидаем выдачи средств' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Подписать договор' })).not.toBeInTheDocument()
@@ -208,12 +209,14 @@ describe('live application card', () => {
         reasons: [{ code: 'amount_reduced', title: 'Сумма изменена', explanation: 'Банк предложил меньшую сумму.' }],
         decidedAt: base.updatedAt,
       },
-      offer: { id: 'offer-1', amount: 1200000, termMonths: 18, interestRate: 17.5, monthlyPayment: 77000, expiresAt: '2099-01-01T00:00:00Z', response: 'Pending', respondedAt: null },
+      offer: { id: 'offer-1', amount: 1200000, termMonths: 18, interestRate: 17.5, monthlyPayment: 77000, totalPayment: 1386000, totalInterest: 186000, expiresAt: '2099-01-01T00:00:00Z', response: 'Pending', respondedAt: null },
     }
     show({ getApplication: vi.fn().mockResolvedValue(application) } as unknown as CreditApi)
     expect(await screen.findByText('Сумма снижена из-за долговой нагрузки.')).toBeInTheDocument()
     expect(screen.getByText('Банк предложил меньшую сумму.')).toBeInTheDocument()
-    expect(screen.getByText('1 200 000 ₽')).toBeInTheDocument()
+    expect(screen.getAllByText('1 200 000 ₽').length).toBeGreaterThan(0)
+    expect(screen.getByText('1 386 000 ₽')).toBeInTheDocument()
+    expect(screen.getByText('186 000 ₽')).toBeInTheDocument()
     expect(screen.getByText('17,5 %')).toBeInTheDocument()
     expect(screen.getByText('77 000 ₽')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Принять предложение' })).toBeInTheDocument()

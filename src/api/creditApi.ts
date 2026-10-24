@@ -1,6 +1,8 @@
 import type { Application, ApplicationSummary, Company, Contract, CreateApplicationRequest, CreateApplicationResponse, PagedResponse, Product, SignCodeResponse } from '../types/api'
+import type { FinancingPreview, FinancingPreviewRequest } from '../types/financing'
 
 export interface CreditApi {
+  previewFinancing(body: FinancingPreviewRequest, signal?: AbortSignal): Promise<FinancingPreview>
   getProducts(): Promise<Product[]>
   getCompanies(): Promise<Company[]>
   createApplication(request: CreateApplicationRequest): Promise<CreateApplicationResponse>

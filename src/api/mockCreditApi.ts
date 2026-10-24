@@ -2,6 +2,7 @@ import type { CreditApi } from './creditApi'
 import type { Application, ApiProblem, CreateApplicationRequest } from '../types/api'
 import { mockCompanies, mockProducts, purposeTitles } from './mockData'
 import { demoContract } from './mockContract'
+import { mockFinancingPreview } from './mockFinancingData'
 
 const storageKey = 'alfacredit.demo.applications.v1'
 
@@ -66,6 +67,21 @@ export function createMockCreditApi(options: MockOptions): CreditApi {
   }
 
   return {
+    async previewFinancing(body, signal) {
+      await pause()
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+      if (body.amount !== 1500000 || body.purpose !== 'WorkingCapital' || (body.termMonths !== undefined && body.termMonths !== 12)) throw problem(422, 'Демо-пример: 1 500 000 ₽ на оборотные средства, срок 12 месяцев. Для других параметров подключите API.')
+      const company = mockCompanies.find((item) => item.id === body.companyId)
+      if (!company) throw problem(400, 'Выберите компанию.')
+      const result = structuredClone(mockFinancingPreview)
+      result.company = { id: company.id, name: company.name, inn: company.inn, businessAgeMonths: company.businessAgeMonths }
+      result.request = { ...result.request, needByDate: body.needByDate, termMonths: body.termMonths ?? null }
+      for (const option of result.options) {
+        option.applyWith = { ...option.applyWith, companyId: body.companyId, needByDate: body.needByDate }
+        option.termSuggested = body.termMonths === undefined
+      }
+      return result
+    },
     async getProducts() {
       await pause()
       return mockProducts
@@ -114,6 +130,7 @@ export function createMockCreditApi(options: MockOptions): CreditApi {
         amount: request.amount, termMonths: request.termMonths,
         purpose: request.purpose, purposeTitle: purposeTitles[request.purpose],
         purposeDescription: request.purposeDescription ?? null,
+        needByDate: request.needByDate ?? null,
         createdByUserId: '01a15619-f9cc-70fe-bad8-2c6a70edfbd5',
         createdAt: timestamp, updatedAt: timestamp,
         availableActions: ['cancel'],
@@ -149,6 +166,7 @@ export function createMockCreditApi(options: MockOptions): CreditApi {
         id: item.id, number: item.number, status: item.status, company: item.company,
         product: item.product, amount: item.amount, termMonths: item.termMonths,
         purpose: item.purpose, purposeTitle: item.purposeTitle, createdAt: item.createdAt, updatedAt: item.updatedAt,
+        needByDate: item.needByDate ?? null,
       }))
       return { items, page, pageSize, totalCount: applications.length, totalPages: Math.ceil(applications.length / pageSize) }
     },

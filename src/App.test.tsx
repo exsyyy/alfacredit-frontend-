@@ -20,32 +20,32 @@ describe('application flow', () => {
   beforeEach(() => localStorage.clear())
 
   it('keeps letters out of numeric inputs including pasted text', async () => {
-    render(<MemoryRouter><App api={createMockCreditApi({ storage: localStorage, delayMs: 0 })} /></MemoryRouter>)
+    render(<MemoryRouter initialEntries={['/catalog']}><App api={createMockCreditApi({ storage: localStorage, delayMs: 0 })} /></MemoryRouter>)
     const amount = await screen.findByLabelText('Сумма кредита')
     const term = screen.getByLabelText('Срок, месяцев')
     fireEvent.change(amount, { target: { value: '500 000dgf' } })
     fireEvent.change(term, { target: { value: '36dsfdsf' } })
-    expect(amount).toHaveValue('500000')
+    expect(amount).toHaveValue('500 000')
     expect(term).toHaveValue('36')
     fireEvent.change(term, { target: { value: '1.2e3' } })
     expect(term).toHaveValue('36')
     fireEvent.change(amount, { target: { value: '-1500000' } })
-    expect(amount).toHaveValue('500000')
+    expect(amount).toHaveValue('500 000')
   })
 
   it('remembers the cookie notice choice after reopening the app', async () => {
     const api = createMockCreditApi({ storage: localStorage, delayMs: 0 })
-    const view = render(<MemoryRouter><App api={api} /></MemoryRouter>)
+    const view = render(<MemoryRouter initialEntries={['/catalog']}><App api={api} /></MemoryRouter>)
     expect(screen.getByRole('region', { name: 'Cookie и хранение данных' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
     view.unmount()
-    render(<MemoryRouter><App api={api} /></MemoryRouter>)
+    render(<MemoryRouter initialEntries={['/catalog']}><App api={api} /></MemoryRouter>)
     expect(screen.queryByRole('region', { name: 'Cookie и хранение данных' })).not.toBeInTheDocument()
   })
 
   it('shows required field errors before sending', async () => {
     const api = createMockCreditApi({ storage: localStorage, delayMs: 0 })
-    render(<MemoryRouter><App api={api} /></MemoryRouter>)
+    render(<MemoryRouter initialEntries={['/catalog']}><App api={api} /></MemoryRouter>)
     fireEvent.click(await screen.findByRole('button', { name: 'Отправить заявку' }))
     expect(screen.getByText('Выберите компанию.')).toBeInTheDocument()
     expect(screen.getByText('Укажите сумму кредита.')).toBeInTheDocument()
@@ -57,7 +57,7 @@ describe('application flow', () => {
       storage: localStorage, delayMs: 0,
       idFactory: () => 'application-1', now: () => '2026-10-20T13:17:20.000Z',
     })
-    render(<MemoryRouter><App api={api} /></MemoryRouter>)
+    render(<MemoryRouter initialEntries={['/catalog']}><App api={api} /></MemoryRouter>)
     await screen.findByLabelText('Компания')
     fillForm()
     fireEvent.click(screen.getByRole('button', { name: 'Отправить заявку' }))
@@ -73,12 +73,12 @@ describe('application flow', () => {
 
   it('keeps entered values and offers a retry after a save error', async () => {
     const api = createMockCreditApi({ storage: localStorage, delayMs: 0, failCreate: true })
-    render(<MemoryRouter><App api={api} /></MemoryRouter>)
+    render(<MemoryRouter initialEntries={['/catalog']}><App api={api} /></MemoryRouter>)
     await screen.findByLabelText('Компания')
     fillForm()
     fireEvent.click(screen.getByRole('button', { name: 'Отправить заявку' }))
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Демо-сервис временно недоступен.'))
-    expect(screen.getByLabelText('Сумма кредита')).toHaveValue('1500000')
+    expect(screen.getByLabelText('Сумма кредита')).toHaveValue('1 500 000')
     expect(screen.getByRole('button', { name: 'Попробовать снова' })).toBeEnabled()
   })
 
@@ -92,7 +92,7 @@ describe('application flow', () => {
       }),
       logout: () => undefined,
     }
-    render(<MemoryRouter><App api={api} auth={auth} /></MemoryRouter>)
+    render(<MemoryRouter initialEntries={['/catalog']}><App api={api} auth={auth} /></MemoryRouter>)
     expect(screen.getByRole('heading', { name: 'Вход в кабинет' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Компания')).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Логин'), { target: { value: 'client_good' } })
@@ -113,7 +113,7 @@ describe('application flow', () => {
       getProducts: () => Promise.resolve([]),
       getCompanies: () => Promise.reject({ status: 401, title: 'Unauthorized' }),
     } as unknown as CreditApi
-    render(<MemoryRouter><App api={api} auth={auth} /></MemoryRouter>)
+    render(<MemoryRouter initialEntries={['/catalog']}><App api={api} auth={auth} /></MemoryRouter>)
     await screen.findByRole('heading', { name: 'Вход в кабинет' })
     expect(logout).toHaveBeenCalledOnce()
   })
