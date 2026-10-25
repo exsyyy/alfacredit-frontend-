@@ -25,6 +25,15 @@ function show(api: CreditApi) {
 }
 
 describe('my applications', () => {
+  it.each([
+    ['Approved', 'Одобрено'], ['ApprovedWithConditions', 'Одобрено с условиями'],
+    ['ManualReview', 'Заявку рассматривает менеджер'], ['Rejected', 'Банк не одобрил заявку'],
+    ['Disbursed', 'Средства выданы'],
+  ])('uses the current %s label in the list', async (code, title) => {
+    const entry = { ...item, status: { ...item.status, code, title: code === 'Disbursed' ? title : 'Старый текст' } }
+    show({ listApplications: async () => page([entry]) } as CreditApi)
+    expect(await screen.findByText(title)).toBeInTheDocument()
+  })
   it('loads a saved application and links to its card', async () => {
     const listApplications = vi.fn().mockResolvedValue(page([item]))
     show({ listApplications } as unknown as CreditApi)

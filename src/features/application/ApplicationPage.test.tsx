@@ -1,10 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { CreditApi } from '../../api/creditApi'
 import { createMockCreditApi } from '../../api/mockCreditApi'
 import type { Application } from '../../types/api'
 import ApplicationPage from './ApplicationPage'
+import { mockDecisionApplication } from '../../api/mockDecisionData'
 
 async function exampleApplication(): Promise<Application> {
   const mock = createMockCreditApi({ storage: localStorage, delayMs: 0, idFactory: () => 'app-1' })
@@ -33,6 +34,106 @@ async function signingExample() {
 
 describe('live application card', () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); localStorage.clear() })
+
+  it.each([
+    ['Approved', 'Одобрено'], ['ApprovedWithConditions', 'Одобрено с условиями'],
+    ['ManualReview', 'Заявку рассматривает менеджер'], ['Rejected', 'Банк не одобрил заявку'],
+  ] as const)('explains %s consistently in the card and history', async (type, title) => {
+    const application = mockDecisionApplication(type)
+    show({ getApplication: async () => application } as unknown as CreditApi)
+    expect(await screen.findByRole('heading', { name: title })).toBeInTheDocument()
+    fireEvent.click(screen.getByText('История', { exact: true }))
+    expect(screen.getAllByText(title).length).toBeGreaterThan(2)
+    expect(screen.queryByText('risk_grade', { exact: true })).not.toBeInTheDocument()
+    expect(screen.queryByText('additional_check', { exact: true })).not.toBeInTheDocument()
+  })
+
+  it('shows requirements without implying an amount reduction or inventing a requested rate', async () => {
+    const application = mockDecisionApplication('ApprovedWithConditions')
+    application.status.description = 'Банк готов предоставить финансирование, но сумма, срок или ставка отличаются от запрошенных.'
+    show({ getApplication: async () => application } as unknown as CreditApi)
+    await screen.findByRole('heading', { name: 'Одобрено с условиями' })
+    expect(screen.getByText('Банк предложил следующие условия')).toBeInTheDocument()
+    expect(screen.queryByText(application.status.description)).not.toBeInTheDocument()
+    expect(screen.getByText('Условия предложения')).toBeInTheDocument()
+    expect(screen.getByText(application.decision!.conditions!)).toBeInTheDocument()
+    const table = screen.getByRole('table', { name: 'Запрошено и предложено' })
+    expect(table.querySelectorAll('.changed-term')).toHaveLength(0)
+    expect(table).not.toHaveTextContent('%')
+    expect(screen.getByText('22,5 %')).toBeInTheDocument()
+  })
+
+  it('keeps a non-final approval recommendation under manual review without offer terms', async () => {
+    const manual = mockDecisionApplication('ManualReview')
+    const approved = mockDecisionApplication('Approved')
+    manual.decision = { ...approved.decision!, isFinal: false, recommendedType: 'Approved' }
+    manual.offer = approved.offer
+    show({ getApplication: async () => manual } as unknown as CreditApi)
+    await screen.findByRole('heading', { name: 'Заявку рассматривает менеджер' })
+    expect(screen.getByText(manual.status.clientNextAction)).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Кредитное предложение' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Принять предложение' })).not.toBeInTheDocument()
+    expect(screen.getByText('Обновляем статус автоматически')).toBeInTheDocument()
+  })
+
+  it('handles a legacy refusal with missing optional explanations', async () => {
+    const application = JSON.parse(JSON.stringify(mockDecisionApplication('Rejected')))
+    delete application.decision.reasons
+    delete application.decision.conditions
+    delete application.decision.isSimulated
+    application.history = []
+    show({ getApplication: async () => application } as unknown as CreditApi)
+    await screen.findByRole('heading', { name: 'Банк не одобрил заявку' })
+    expect(screen.getByText('Причина пока не указана. Уточните её у банка.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Принять предложение' })).not.toBeInTheDocument()
+  })
+
+  it.each([null, undefined])('keeps unknown limit-product totals as %s instead of displaying zero', async total => {
+    const application = mockDecisionApplication('Approved')
+    application.product = { code: 'overdraft', name: 'Овердрафт' }
+    application.offer = { ...application.offer!, totalPayment: total, totalInterest: total }
+    show({ getApplication: async () => application } as unknown as CreditApi)
+    const offer = await screen.findByRole('region', { name: 'Кредитное предложение' })
+    expect(within(offer).queryByText('0 ₽')).not.toBeInTheDocument()
+    expect(within(offer).queryByText('Общая выплата')).not.toBeInTheDocument()
+    expect(within(offer).queryByText('Переплата')).not.toBeInTheDocument()
+  })
+
+  it('explains a missing offer without creating terms or actions', async () => {
+    const application = mockDecisionApplication('Approved')
+    application.offer = null
+    application.availableActions = []
+    show({ getApplication: async () => application } as unknown as CreditApi)
+    expect(await screen.findByText('Условия предложения пока не переданы банком.')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Кредитное предложение' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Принять предложение' })).not.toBeInTheDocument()
+  })
+
+  it('refreshes manager review into final approval and preserves the simulation disclosure', async () => {
+    const manual = mockDecisionApplication('ManualReview')
+    const approved = mockDecisionApplication('Approved')
+    approved.decision = { ...approved.decision!, isSimulated: true, decidedBy: 'Manager' }
+    const getApplication = vi.fn().mockResolvedValueOnce(manual).mockResolvedValue(approved)
+    vi.useFakeTimers()
+    show({ getApplication } as unknown as CreditApi)
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByRole('heading', { name: 'Заявку рассматривает менеджер' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Кредитное предложение' })).not.toBeInTheDocument()
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+    expect(screen.getByRole('heading', { name: 'Одобрено' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Принять предложение' })).toBeInTheDocument()
+    expect(screen.getByText('Решение менеджера смоделировано. Настоящий сотрудник заявку не рассматривал.')).toBeInTheDocument()
+  })
+
+  it.each(['ContractSigning', 'Signed', 'Disbursed', 'Cancelled', 'OfferDeclined'])('preserves current %s after an approval', async code => {
+    const application = mockDecisionApplication('Approved')
+    application.status = { ...application.status, code, title: `Текущий этап: ${code}` }
+    application.availableActions = []
+    application.offer!.response = code === 'OfferDeclined' ? 'Declined' : 'Accepted'
+    show({ getApplication: async () => application } as unknown as CreditApi)
+    expect(await screen.findByRole('heading', { name: `Текущий этап: ${code}` })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Одобрено' })).not.toBeInTheDocument()
+  })
 
   it.each([false, true])('returns to status only after acceptance succeeds (reduced motion: %s)', async reducedMotion => {
     const { api } = await offerExample()
@@ -251,7 +352,7 @@ describe('live application card', () => {
     await act(async () => { await Promise.resolve() })
     expect(screen.getByText('Обновляем статус автоматически')).toBeInTheDocument()
     await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
-    expect(screen.getByRole('heading', { name: 'Отказ' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Банк не одобрил заявку' })).toBeInTheDocument()
     expect(screen.getAllByText('Недостаточный срок работы бизнеса.')).toHaveLength(2)
     await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
     expect(getApplication).toHaveBeenCalledTimes(2)
@@ -296,6 +397,8 @@ describe('live application card', () => {
     show({ getApplication: vi.fn().mockResolvedValue(application) } as unknown as CreditApi)
     expect(await screen.findByText('Сумма снижена из-за долговой нагрузки.')).toBeInTheDocument()
     expect(screen.getByText('Банк предложил меньшую сумму.')).toBeInTheDocument()
+    const comparison = screen.getByRole('table', { name: 'Запрошено и предложено' })
+    expect(within(comparison).getAllByText('Изменено')).toHaveLength(2)
     expect(screen.getAllByText('1 200 000 ₽').length).toBeGreaterThan(0)
     expect(screen.getByText('1 386 000 ₽')).toBeInTheDocument()
     expect(screen.getByText('186 000 ₽')).toBeInTheDocument()

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { calendarDate } from '../financing/financingDraft'
+import { clientStatusTitle } from './clientDecision'
 import type { CreditApi } from '../../api/creditApi'
 import type { ApiProblem, ApplicationSummary } from '../../types/api'
 
@@ -41,7 +42,7 @@ export default function ApplicationsListPage({ api, onAuthExpired }: { api: Cred
     {loading && <div className="state-panel" role="status">Загружаем заявки…</div>}
     {!loading && error && items.length === 0 && <div className="state-panel error-panel" role="alert"><h2>{error}</h2><p>Проверьте соединение и попробуйте ещё раз.</p><button type="button" className="secondary-button" onClick={() => void load(1)}>Повторить</button></div>}
     {!loading && !error && items.length === 0 && <div className="state-panel"><h2>У вас пока нет заявок</h2><p>Заполните форму, чтобы создать первую заявку.</p><Link className="primary-button button-link" to="/">Создать заявку</Link></div>}
-    {items.length > 0 && <div className="application-list">{items.map((item) => <Link className="application-list-item" key={item.id} to={`/applications/${encodeURIComponent(item.id)}`} aria-label={`Заявка ${item.number}`}><div className="application-list-head"><strong>{item.number}</strong><span className="status-badge"><span />{item.status.title}</span></div><h2>{item.company.name}</h2><p>{item.product.name} · {money(item.amount)} · {item.termMonths} мес.</p><small>Создана {date(item.createdAt)}</small>{item.needByDate && <small>Деньги нужны к {calendarDate(item.needByDate)}</small>}</Link>)}</div>}
+    {items.length > 0 && <div className="application-list">{items.map((item) => <Link className="application-list-item" key={item.id} to={`/applications/${encodeURIComponent(item.id)}`} aria-label={`Заявка ${item.number}`}><div className="application-list-head"><strong>{item.number}</strong><span className="status-badge"><span />{clientStatusTitle(item.status)}</span></div><h2>{item.company.name}</h2><p>{item.product.name} · {money(item.amount)} · {item.termMonths} мес.</p><small>Создана {date(item.createdAt)}</small>{item.needByDate && <small>Деньги нужны к {calendarDate(item.needByDate)}</small>}</Link>)}</div>}
     {items.length > 0 && error && <div className="refresh-error" role="alert"><span>{error}</span><button type="button" className="secondary-button" onClick={() => void load(page + 1)}>Повторить</button></div>}
     {page < totalPages && <button type="button" className="secondary-button load-more" disabled={loadingMore} onClick={() => void load(page + 1)}>{loadingMore ? 'Загружаем…' : 'Показать ещё'}</button>}
   </main>
