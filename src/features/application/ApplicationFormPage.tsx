@@ -137,7 +137,7 @@ export default function ApplicationFormPage({ api, isDemo = true, onAuthExpired 
             {submitError && <div className="submit-error" role="alert">{submitError}<p>Введённые данные остались в форме. Исправьте отмеченные поля или повторите отправку.</p></div>}
             <div className="form-actions">
               <button className="primary-button" type="submit" disabled={saving}>{saving ? 'Отправляем…' : submitError ? 'Попробовать снова' : 'Отправить заявку'}</button>
-              <p>{isDemo ? 'В демо-режиме заявка сохраняется только на вашем устройстве.' : 'Заявка будет отправлена в локальный API и сохранена в тестовой базе.'}</p>
+              {isDemo && <p>В демо-режиме заявка сохраняется только на вашем устройстве.</p>}
             </div>
           </form>
           <aside className="side-column">

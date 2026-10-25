@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom'
 import type { FinancingOption, FinancingPreview } from '../../types/financing'
 import { calendarDate, money } from './financingDraft'
 import Disclosure from '../../components/Disclosure'
@@ -44,7 +43,6 @@ export default function RecommendationStep({ data, fresh, busy, selectedCode, te
       </div></section>}
       {data?.options.length === 0 && <div className="state-panel"><h2>Подходящих вариантов пока нет</h2><p>Измените потребность или изучите причины ниже.</p></div>}
       {data && data.unsuitable.length > 0 && <Disclosure className="other-products" defaultOpen={data.options.length === 0} summary="Почему другие продукты не подходят">{data.unsuitable.map((item) => <div key={item.productCode}><h3>{item.productName}</h3><ul>{item.reasons.map((note) => <li key={note.code}>{note.text}</li>)}</ul>{item.suggestedAmount && <><p>{item.suggestedAmount.text}</p><button className="secondary-button" type="button" disabled={!fresh} onClick={() => onAmount(item.suggestedAmount!.amount)}>Пересчитать на {money(item.suggestedAmount.amount)}</button></>}</div>)}</Disclosure>}
-      {data && data.notCompared.length > 0 && <section className="other-products" aria-label="Продукты вне сравнения"><h2>Продукты с лимитом — отдельно</h2>{data.notCompared.map((item) => <div key={item.productCode}><h3>{item.productName}</h3><p>{item.reason.text}</p><Link className="text-link" to={`/catalog?product=${encodeURIComponent(item.productCode)}`}>Оформить {item.productName}</Link></div>)}</section>}
       {data && <p className="preview-disclaimer">{data.disclaimer}</p>}
     </>
     <div className="flow-actions"><button type="button" className="secondary-button" onClick={onBack}>Изменить потребность</button></div>

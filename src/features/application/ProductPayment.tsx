@@ -29,7 +29,7 @@ export default function ProductPayment({ api, productCode, amount, termMonths }:
     <p className="catalog-payment-label">Предварительный ежемесячный платёж</p>
     {!key ? <p className="catalog-payment-hint">Укажите сумму и срок кредита.</p> : current?.error ? <div role="alert"><p>{current.error}</p><button type="button" className="text-button" onClick={() => setRetry(value => value + 1)}>Повторить расчёт платежа</button></div> : current?.data === undefined ? <p className="catalog-payment-hint" role="status">Рассчитываем платёж…</p> : payment ? <>
       {payment.available && typeof payment.monthlyPayment === 'number' ? <strong className="catalog-payment-value">{money(payment.monthlyPayment)}</strong> : <strong className="catalog-payment-unavailable">{payment.notes.some(note => note.code === 'limit_product') ? 'Заранее не определяется' : 'Расчёт недоступен'}</strong>}
-      {payment.notes.map(note => <p className="catalog-payment-hint" key={note.code}>{note.text}</p>)}
+      {payment.notes.filter(note => note.code !== 'preliminary').map(note => <p className="catalog-payment-hint" key={note.code}>{note.text}</p>)}
     </> : <p className="catalog-payment-hint">API не передал предварительный расчёт.</p>}
   </section>
 }
