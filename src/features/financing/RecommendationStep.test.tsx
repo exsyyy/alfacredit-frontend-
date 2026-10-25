@@ -7,7 +7,7 @@ import { mockFinancingPreview } from '../../api/mockFinancingData'
 describe('desktop recommendation', () => {
   function show(fresh = true) {
     const onSelect = vi.fn()
-    render(<MemoryRouter><RecommendationStep data={mockFinancingPreview} fresh={fresh} busy={!fresh} selectedCode={mockFinancingPreview.options[0].productCode} term="12" onTerm={vi.fn()} onSelect={onSelect} onAmount={vi.fn()} onBack={vi.fn()} onContinue={vi.fn()} /></MemoryRouter>)
+    render(<MemoryRouter><RecommendationStep data={mockFinancingPreview} fresh={fresh} busy={!fresh} selectedCode={mockFinancingPreview.options[0].productCode} term="12" onTerm={vi.fn()} onAutoTerm={vi.fn()} onSelect={onSelect} onAmount={vi.fn()} onBack={vi.fn()} onContinue={vi.fn()} /></MemoryRouter>)
     return onSelect
   }
 

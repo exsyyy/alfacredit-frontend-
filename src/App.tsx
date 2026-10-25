@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { Link, Navigate, Route, Routes } from 'react-router-dom'
 import type { CreditApi } from './api/creditApi'
 import type { AuthApi } from './api/httpAuthApi'
@@ -13,6 +13,9 @@ import CabinetSidebar from './components/CabinetSidebar'
 
 export default function App({ api, auth }: { api: CreditApi; auth?: AuthApi }) {
   const [session, setSession] = useState(() => auth?.current() ?? null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuButton = useRef<HTMLButtonElement>(null)
+  const closeMenu = useCallback(() => { setMenuOpen(false); menuButton.current?.focus() }, [])
   const isDemo = !auth
   const onAuthExpired = useCallback(() => { auth?.logout(); setSession(null) }, [auth])
 
@@ -20,15 +23,15 @@ export default function App({ api, auth }: { api: CreditApi; auth?: AuthApi }) {
     <div className="app-shell">
       <header className="site-header">
         <div className="header-inner">
+          {(!auth || session) && <button ref={menuButton} type="button" className="menu-toggle" aria-label={menuOpen ? 'Закрыть меню' : 'Открыть меню'} aria-expanded={menuOpen} aria-controls="cabinet-menu" onClick={() => setMenuOpen(value => !value)}><span /><span /><span /></button>}
           <Link className="brand" to="/" aria-label="АльфаКредит — новая заявка">
             <span className="brand-mark">А</span><span>Альфа<span className="brand-light">Кредит</span></span>
           </Link>
-          <span className="header-service">Кабинет бизнеса</span>
           {session ? <div className="account-controls"><span>{session.user.fullName}</span><button type="button" onClick={() => { try { sessionStorage.removeItem(draftKey(session.user.id)) } catch { /* Storage may be unavailable. */ } auth?.logout(); setSession(null) }}>Выйти</button></div> : <span className="header-caption">Кабинет предпринимателя</span>}
         </div>
       </header>
       <div className={`workspace${auth && !session ? ' workspace-login' : ''}`}>
-      {(!auth || session) && <CabinetSidebar />}
+      {(!auth || session) && <CabinetSidebar open={menuOpen} onClose={closeMenu} />}
       <div className="workspace-content">
       {isDemo && <div className="demo-ribbon" role="note"><span className="demo-dot" /> Демо-режим: данные сохраняются только в этом браузере. Банк не получает заявку.</div>}
       {auth && !session ? <LoginPanel auth={auth} onLogin={setSession} /> :
@@ -40,7 +43,7 @@ export default function App({ api, auth }: { api: CreditApi; auth?: AuthApi }) {
           <Route path="/applications/:id" element={<ApplicationPage api={api} isDemo={isDemo} onAuthExpired={onAuthExpired} />} />
           <Route path="*" element={<main className="page"><h1>Страница не найдена</h1><Link to="/">К форме заявки</Link></main>} />
         </Routes>}
-      <footer className="site-footer"><div className="footer-inner"><span>АльфаКредит · прототип для хакатона</span><div className="footer-actions"><span>{isDemo ? 'Данные и условия — демонстрационные' : 'Подключение к локальному API'}</span><StorageNotice /></div></div></footer>
+      <footer className="site-footer"><div className="footer-inner"><span>АльфаКредит · прототип для хакатона</span><div className="footer-actions">{isDemo && <span>Данные и условия — демонстрационные</span>}<StorageNotice /></div></div></footer>
       </div></div>
     </div>
   )

@@ -19,6 +19,21 @@ function fillForm() {
 describe('application flow', () => {
   beforeEach(() => localStorage.clear())
 
+  it('opens navigation from the menu button and closes it after navigation or Escape', async () => {
+    render(<MemoryRouter initialEntries={['/catalog']}><App api={createMockCreditApi({ storage: localStorage, delayMs: 0 })} /></MemoryRouter>)
+    await screen.findByLabelText('Компания')
+    const menu = screen.getByRole('button', { name: 'Открыть меню' })
+    expect(menu).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(menu)
+    expect(screen.getByRole('button', { name: 'Закрыть меню' })).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Основная навигация' })).getByRole('link', { name: 'Мои заявки' }))
+    await screen.findByRole('heading', { name: 'Мои заявки' })
+    expect(menu).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(menu)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(menu).toHaveAttribute('aria-expanded', 'false')
+  })
+
   it('keeps letters out of numeric inputs including pasted text', async () => {
     render(<MemoryRouter initialEntries={['/catalog']}><App api={createMockCreditApi({ storage: localStorage, delayMs: 0 })} /></MemoryRouter>)
     const amount = await screen.findByLabelText('Сумма кредита')
@@ -65,6 +80,7 @@ describe('application flow', () => {
     expect(screen.getByRole('heading', { name: 'Отправлена' })).toBeInTheDocument()
     expect(screen.getByText('После подключения API банк начнёт проверку. Сейчас это демонстрационный шаг.')).toBeInTheDocument()
     expect(screen.getByText('1 500 000 ₽')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть меню' }))
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Основная навигация' })).getByRole('link', { name: 'Мои заявки' }))
     expect(await screen.findByRole('heading', { name: 'Мои заявки' })).toBeInTheDocument()
     fireEvent.click(await screen.findByRole('link', { name: 'Заявка AC-000001' }))

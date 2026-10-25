@@ -66,6 +66,34 @@ describe('financing journey', () => {
     expect((await api.listApplications()).totalCount).toBe(0)
   })
 
+  it('recalculates a manual term and restores automatic selection without creating an application', async () => {
+    const api = createMockCreditApi({ storage: localStorage, delayMs: 0 })
+    const requests: FinancingPreviewRequest[] = []
+    api.previewFinancing = async body => {
+      requests.push(body)
+      const result = structuredClone(mockFinancingPreview)
+      result.options[0].termMonths = body.termMonths ?? 8
+      result.options[0].cost.totalPayment = body.termMonths ? 1800000 : 1600000
+      return result
+    }
+    show(api)
+    await enterNeed()
+    const cost = await screen.findByRole('region', { name: 'Стоимость выбранного варианта' })
+    const input = within(cost).getByLabelText('Срок возврата, месяцев')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Проверить данные' })).toBeEnabled())
+    fireEvent.change(input, { target: { value: '18' } })
+    await waitFor(() => expect(requests.at(-1)?.termMonths).toBe(18))
+    await waitFor(() => expect(within(cost).getByText('1 800 000 ₽')).toBeInTheDocument())
+    fireEvent.click(within(cost).getByRole('button', { name: 'Подобрать автоматически' }))
+    await waitFor(() => expect(requests).toHaveLength(3))
+    expect(requests[2]).not.toHaveProperty('termMonths')
+    await waitFor(() => expect(within(cost).getByText('1 600 000 ₽')).toBeInTheDocument())
+    expect(input).toHaveValue('')
+    fireEvent.click(within(cost).getByRole('button', { name: 'Подобрать автоматически' }))
+    await waitFor(() => expect(requests).toHaveLength(4))
+    expect((await api.listApplications()).totalCount).toBe(0)
+  })
+
   it('ignores an older preview response after the repayment term changes', async () => {
     const api = createMockCreditApi({ storage: localStorage, delayMs: 0 })
     const requests: Array<{ body: FinancingPreviewRequest; finish: (value: FinancingPreview) => void }> = []

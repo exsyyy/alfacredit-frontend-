@@ -82,9 +82,21 @@ export function createMockCreditApi(options: MockOptions): CreditApi {
       }
       return result
     },
-    async getProducts() {
+    async getProducts(query, signal) {
       await pause()
-      return mockProducts
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+      if (!query) return mockProducts
+      return mockProducts.map(product => {
+        const example = query.amount === 1500000 && query.termMonths === 12 ? mockFinancingPreview.options.find(option => option.productCode === product.code) : undefined
+        const limit = product.type === 'Overdraft' || product.type === 'CreditLine'
+        return { ...product, preliminaryPayment: {
+          ...query, interestRate: product.baseRate, available: Boolean(example),
+          monthlyPayment: example?.cost.monthlyPayment ?? null,
+          totalPayment: example?.cost.totalPayment ?? null,
+          totalInterest: example?.cost.totalInterest ?? null,
+          notes: [{ code: limit ? 'limit_product' : example ? 'preliminary' : 'demo_example_only', text: limit ? 'Проценты начисляются за дни использования лимита; ежемесячный платёж заранее не определён.' : example ? 'Демонстрационный предварительный расчёт по базовой ставке продукта.' : 'Для расчёта этих параметров подключите API. В демо доступен пример: 1 500 000 ₽ на 12 месяцев.' }],
+        } }
+      })
     },
     async getCompanies() {
       await pause()

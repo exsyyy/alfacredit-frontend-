@@ -35,7 +35,7 @@ export function createHttpCreditApi(options: HttpOptions): CreditApi {
 
   return {
     previewFinancing: (body, signal) => request<FinancingPreview>('/api/financing/preview', { method: 'POST', body: JSON.stringify(body), signal }),
-    getProducts: () => request<Product[]>('/api/products', undefined, false),
+    getProducts: (query, signal) => request<Product[]>(`/api/products${query ? `?${new URLSearchParams({ amount: String(query.amount), termMonths: String(query.termMonths) })}` : ''}`, { signal }, false),
     getCompanies: () => request<Company[]>('/api/companies'),
     createApplication: (body) => request<CreateApplicationResponse>('/api/applications', {
       method: 'POST', body: JSON.stringify(body),

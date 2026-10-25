@@ -14,7 +14,7 @@ const product: Product = {
   baseRate: 19.5,
   allowedPurposes: [{ code: 'WorkingCapital', title: 'Пополнение оборотных средств' }],
   minBusinessAgeMonths: 12,
-  requiresCollateral: false,
+  requiresCollateral: false, preliminaryPayment: null,
 }
 
 const valid: ApplicationFormValues = {

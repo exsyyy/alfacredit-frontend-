@@ -2,6 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { createHttpCreditApi } from './httpCreditApi'
 
 describe('HTTP credit API adapter', () => {
+  it('requests the catalog payment for both amount and term, with an abort signal', async () => {
+    let call: { url: string; init?: RequestInit } | undefined
+    const controller = new AbortController()
+    const api = createHttpCreditApi({ baseUrl: '', getToken: () => null, fetchImpl: async (url, init) => {
+      call = { url: String(url), init }
+      return new Response('[]')
+    } })
+    await api.getProducts({ amount: 1500000, termMonths: 12 }, controller.signal)
+    expect(call?.url).toBe('/api/products?amount=1500000&termMonths=12')
+    expect(call?.init?.signal).toBe(controller.signal)
+  })
   it('previews financing with an abort signal, JWT and a calendar date without creating an application', async () => {
     let call: { url: string; init?: RequestInit } | undefined
     const body = { companyId: 'company-1', amount: 1500000, purpose: 'WorkingCapital' as const, needByDate: '2026-11-15', termMonths: 12 }

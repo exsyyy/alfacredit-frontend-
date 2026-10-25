@@ -1,6 +1,17 @@
 /** JSON contracts from backend docs/api.md and docs/completion-flow.md (b161c41). Dates are ISO 8601, money is RUB. */
 export type LoanPurpose = 'WorkingCapital' | 'Equipment' | 'Expansion' | 'Refinancing' | 'Other'
 
+export interface PreliminaryPayment {
+  amount: number
+  termMonths: number
+  interestRate: number
+  available: boolean
+  monthlyPayment: number | null
+  totalPayment: number | null
+  totalInterest: number | null
+  notes: Array<{ code: string; text: string }>
+}
+
 export interface Product {
   code: string
   name: string
@@ -14,6 +25,7 @@ export interface Product {
   allowedPurposes: Array<{ code: LoanPurpose; title: string }>
   minBusinessAgeMonths: number
   requiresCollateral: boolean
+  preliminaryPayment: PreliminaryPayment | null
 }
 
 export interface Company {

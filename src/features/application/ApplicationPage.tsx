@@ -1,3 +1,4 @@
+import Disclosure from '../../components/Disclosure'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import type { CreditApi } from '../../api/creditApi'
@@ -135,7 +136,7 @@ export default function ApplicationPage({ api, isDemo = true, onAuthExpired }: {
             <dl className="detail-list"><div><dt>Номер заявки</dt><dd>{application.number}</dd></div><div><dt>Идентификатор</dt><dd className="id-value">{application.id}</dd></div><div><dt>Компания</dt><dd>{application.company.name}<small>ИНН {application.company.inn}</small></dd></div><div><dt>Продукт</dt><dd>{application.product.name}</dd></div><div><dt>Сумма</dt><dd>{money(application.amount)}</dd></div><div><dt>Срок</dt><dd>{application.termMonths} мес.</dd></div><div><dt>Цель</dt><dd>{application.purposeTitle}</dd></div>{application.purposeDescription && <div><dt>Описание цели</dt><dd>{application.purposeDescription}</dd></div>}</dl>
           </section>
         </div>
-        <aside className="side-column"><div className="progress-panel"><p className="side-label">Ход рассмотрения</p><div className="progress-number"><strong>{application.status.progressStep}</strong><span>из {application.status.totalSteps}</span></div><div className="progress-track"><span style={{ width: `${application.status.progressStep / application.status.totalSteps * 100}%` }} /></div><p>{application.status.title}</p></div><div className="history-panel"><p className="side-label">История</p>{application.history.map((entry, index) => <div className="history-item" key={`${entry.occurredAt}-${index}`}><span className="history-marker" /><div><strong>{entry.toStatusTitle}</strong><time>{date(entry.occurredAt)}</time>{entry.comment && <p>{entry.comment}</p>}</div></div>)}</div></aside>
+        <aside className="side-column"><div className="progress-panel"><p className="side-label">Ход рассмотрения</p><div className="progress-number"><strong>{application.status.progressStep}</strong><span>из {application.status.totalSteps}</span></div><div className="progress-track"><span style={{ width: `${application.status.progressStep / application.status.totalSteps * 100}%` }} /></div><p>{application.status.title}</p></div><Disclosure className="history-panel" summary="История">{application.history.map((entry, index) => <div className="history-item" key={`${entry.occurredAt}-${index}`}><span className="history-marker" /><div><strong>{entry.toStatusTitle}</strong><time>{date(entry.occurredAt)}</time>{entry.comment && <p>{entry.comment}</p>}</div></div>)}</Disclosure></aside>
       </div>
     </main>
   )

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import MoneyInput from '../../components/MoneyInput'
+import ProductPayment from './ProductPayment'
 import type { CreditApi } from '../../api/creditApi'
 import type { ApiProblem, ApplicationFormValues, Company, FieldErrors, Product } from '../../types/api'
 import { toCreateRequest, validateApplicationForm } from './validation'
@@ -83,7 +84,6 @@ export default function ApplicationFormPage({ api, isDemo = true, onAuthExpired 
     <main className="page">
       <div className="page-intro">
         <div><p className="section-kicker">Кредитование бизнеса</p><h1>Новая заявка</h1>
-          <p className="intro-copy">Выберите условия финансирования. Мы покажем все введённые сведения перед дальнейшей обработкой.</p>
         </div>
         <div className="intro-index" aria-hidden="true">01<span>/ 02</span></div>
       </div>
@@ -147,6 +147,7 @@ export default function ApplicationFormPage({ api, isDemo = true, onAuthExpired 
                 <div className="product-spec"><span>Сумма</span><strong>{formatMoney(product.minAmount)} — {formatMoney(product.maxAmount)}</strong></div>
                 <div className="product-spec"><span>Срок</span><strong>{product.minTermMonths}–{product.maxTermMonths} мес.</strong></div>
                 <div className="product-spec"><span>Базовая ставка</span><strong>от {product.baseRate} % годовых</strong></div>
+                <ProductPayment api={api} productCode={product.code} amount={values.amount} termMonths={values.termMonths} />
                 {product.requiresCollateral && <p className="product-note">Для продукта требуется залог.</p>}
               </> : <><h2>Условия появятся здесь</h2><p className="product-description">Выберите продукт в форме, чтобы увидеть доступные сумму, срок и цели.</p></>}
             </div>

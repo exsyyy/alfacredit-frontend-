@@ -3,7 +3,7 @@ import type { FinancingPreview, FinancingPreviewRequest } from '../types/financi
 
 export interface CreditApi {
   previewFinancing(body: FinancingPreviewRequest, signal?: AbortSignal): Promise<FinancingPreview>
-  getProducts(): Promise<Product[]>
+  getProducts(query?: { amount: number; termMonths: number }, signal?: AbortSignal): Promise<Product[]>
   getCompanies(): Promise<Company[]>
   createApplication(request: CreateApplicationRequest): Promise<CreateApplicationResponse>
   getApplication(id: string): Promise<Application>
