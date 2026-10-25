@@ -28,14 +28,14 @@ export default function ApplicationPage({ api, isDemo = true, onAuthExpired }: {
   const actionLock = useRef(false)
   const requestGeneration = useRef(0)
   const statusPanel = useRef<HTMLElement>(null)
-  const scrollAfterSigning = useRef(false)
+  const scrollAfterAction = useRef(false)
 
   useEffect(() => {
-    if (!scrollAfterSigning.current || !['Signed', 'Disbursed'].includes(application?.status.code ?? '')) return
-    scrollAfterSigning.current = false
+    if (!scrollAfterAction.current || !application) return
+    scrollAfterAction.current = false
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     statusPanel.current?.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
-  }, [application?.status.code])
+  }, [application])
 
   useEffect(() => {
     let active = true
@@ -87,6 +87,7 @@ export default function ApplicationPage({ api, isDemo = true, onAuthExpired }: {
       const updated = action === 'acceptOffer' ? await api.acceptOffer(id)
         : action === 'declineOffer' ? await api.declineOffer(id)
           : await api.cancelApplication(id)
+      if (action === 'acceptOffer') scrollAfterAction.current = true
       setApplication(updated)
     } catch (problem) {
       const issue = problem as ApiProblem
@@ -121,7 +122,7 @@ export default function ApplicationPage({ api, isDemo = true, onAuthExpired }: {
             {application.status.code === 'NeedsClarification' && <div className="decision-detail"><strong>Какие данные нужны</strong><p>{decisionComment || 'Перечень дополнительных данных пока не передан. Проверьте историю заявки позже.'}</p></div>}
             {application.status.code === 'Rejected' && reasons.length === 0 && <div className="decision-detail"><strong>Причина отказа</strong><p>{decisionComment || 'Причина пока не указана. Уточните её у банка.'}</p></div>}
           </AnimatedStatus>
-          {application.contract && <ContractPanel key={`${application.id}-${application.contract.id}`} api={api} application={application} busy={pendingAction !== null} onBegin={beginAction} onEnd={endAction} onUpdated={setApplication} onSigned={() => { scrollAfterSigning.current = true }} onReload={() => setReloadKey((key) => key + 1)} onAuthExpired={onAuthExpired} />}
+          {application.contract && <ContractPanel key={`${application.id}-${application.contract.id}`} api={api} application={application} busy={pendingAction !== null} onBegin={beginAction} onEnd={endAction} onUpdated={setApplication} onSigned={() => { scrollAfterAction.current = true }} onReload={() => setReloadKey((key) => key + 1)} onAuthExpired={onAuthExpired} />}
           {application.status.code === 'Signed' && <section className="disbursement-panel" aria-label="Выдача кредита"><h2>Ожидаем выдачи средств</h2><p>Договор подписан. Карточка обновляется автоматически до завершения выдачи.</p>{application.disbursement?.status === 'Failed' && <p className="submit-error" role="alert">{application.disbursement.error || 'Выдача пока не выполнена.'} Следите за статусом заявки. Если задержка сохраняется, обратитесь в банк.</p>}</section>}
           {application.disbursement?.status === 'Completed' && <section className="disbursement-panel" aria-label="Выдача кредита"><h2>Кредит выдан</h2><dl className="detail-list"><div><dt>Сумма выдачи</dt><dd>{money(application.disbursement.amount)}</dd></div><div><dt>Счёт зачисления</dt><dd className="account-number">{application.disbursement.account}</dd></div><div><dt>Дата выдачи</dt><dd>{application.disbursement.completedAt ? date(application.disbursement.completedAt) : 'Уточняется'}</dd></div><div><dt>Платёжное поручение</dt><dd>{application.disbursement.paymentOrderNumber || 'Уточняется'}</dd></div></dl></section>}
           {application.offer && <section className="offer-panel" aria-label="Кредитное предложение"><div className="panel-heading"><span className="panel-number">✓</span><div><h2>Предложение банка</h2><p>{application.offer.response === 'Pending' ? `Действует до ${date(application.offer.expiresAt)}` : `Статус: ${application.offer.response === 'Accepted' ? 'принято' : application.offer.response === 'Declined' ? 'отклонено' : 'истекло'}`}</p></div></div>

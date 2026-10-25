@@ -16,18 +16,54 @@ function show(api: CreditApi) {
   return render(<MemoryRouter initialEntries={['/applications/app-1']}><Routes><Route path="/applications/:id" element={<ApplicationPage api={api} isDemo={false} />} /></Routes></MemoryRouter>)
 }
 
-async function signingExample() {
+async function offerExample() {
   const base = await exampleApplication()
   const api = createMockCreditApi({ storage: localStorage, delayMs: 0 })
   base.availableActions = ['acceptOffer', 'declineOffer']
   base.offer = { id: 'offer-1', amount: 1500000, termMonths: 12, interestRate: 16, monthlyPayment: 140000, expiresAt: '2099-01-01T00:00:00Z', response: 'Pending', respondedAt: null }
   localStorage.setItem('alfacredit.demo.applications.v1', JSON.stringify([base]))
+  return { api, application: base }
+}
+
+async function signingExample() {
+  const { api } = await offerExample()
   const application = await api.acceptOffer('app-1')
   return { api, application }
 }
 
 describe('live application card', () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); localStorage.clear() })
+
+  it.each([false, true])('returns to status only after acceptance succeeds (reduced motion: %s)', async reducedMotion => {
+    const { api } = await offerExample()
+    vi.stubGlobal('matchMedia', () => ({ matches: reducedMotion }))
+    const accept = api.acceptOffer
+    let finish!: () => void
+    api.acceptOffer = id => new Promise(resolve => { finish = () => { void accept(id).then(resolve) } })
+    show(api)
+    const button = await screen.findByRole('button', { name: 'Принять предложение' })
+    const statusPanel = screen.getByText('Текущий статус').closest('section')!
+    const scrollToStatus = vi.fn()
+    statusPanel.scrollIntoView = scrollToStatus
+    expect(scrollToStatus).not.toHaveBeenCalled()
+    fireEvent.click(button)
+    expect(scrollToStatus).not.toHaveBeenCalled()
+    await act(async () => finish())
+    await screen.findByRole('heading', { name: 'Договор KD-000001' })
+    await waitFor(() => expect(scrollToStatus).toHaveBeenCalledExactlyOnceWith({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' }))
+  })
+
+  it('keeps the current scroll position when accepting the offer fails', async () => {
+    const { api } = await offerExample()
+    api.acceptOffer = async () => { throw { title: 'Предложение уже недоступно.' } }
+    show(api)
+    const button = await screen.findByRole('button', { name: 'Принять предложение' })
+    const scrollToStatus = vi.fn()
+    screen.getByText('Текущий статус').closest('section')!.scrollIntoView = scrollToStatus
+    fireEvent.click(button)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Предложение уже недоступно.')
+    expect(scrollToStatus).not.toHaveBeenCalled()
+  })
 
   it('smoothly returns to the current status after successful signing, without scrolling on load', async () => {
     const { api } = await signingExample()
